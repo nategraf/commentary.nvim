@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Output format selection with `output.format` option: `detailed` (default) or `minimal` for AI assistants
+
 ## [0.5.0] - 2025-07-12
 
 ### Added

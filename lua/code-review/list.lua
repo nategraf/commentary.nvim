@@ -228,7 +228,7 @@ function M.list_with_fzf_lua()
   end
 
   -- Create preview buffers for all comments
-  local comment_module = require("code-review.comment")
+  local formatter = require("code-review.formatter")
   local preview_buffers = {}
   M._temp_buffers = {}
 
@@ -241,7 +241,7 @@ function M.list_with_fzf_lua()
     vim.api.nvim_buf_set_option(bufnr, "filetype", "markdown")
 
     -- Set content
-    local lines = comment_module.format_as_markdown(comment, true, false)
+    local lines = formatter.format_single(comment)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
 
     preview_buffers[i] = bufnr
@@ -553,7 +553,7 @@ function M.list_threads_with_fzf_lua()
   end
 
   -- Create preview buffers for all threads
-  local comment_module = require("code-review.comment")
+  local formatter = require("code-review.formatter")
   local preview_buffers = {}
   local temp_buffers = {}
 
@@ -584,7 +584,7 @@ function M.list_threads_with_fzf_lua()
     for j, comment in ipairs(thread_comments) do
       table.insert(lines, string.format("## Comment %d", j))
       table.insert(lines, "")
-      local comment_lines = comment_module.format_as_markdown(comment, true, false)
+      local comment_lines = formatter.format_single(comment)
       for _, line in ipairs(comment_lines) do
         table.insert(lines, line)
       end

@@ -75,7 +75,7 @@ end
 
 -- Test comment formatting
 T["comment formatting"] = function()
-  local comment = require("code-review.comment")
+  local formatter = require("code-review.formatter")
 
   local test_data = {
     file = "test.lua",
@@ -86,7 +86,7 @@ T["comment formatting"] = function()
   }
 
   -- Format as markdown
-  local lines = comment.format_as_markdown(test_data, true, false)
+  local lines = formatter.format_single(test_data)
 
   -- Verify format
   MiniTest.expect.equality(type(lines), "table")

@@ -49,9 +49,8 @@ function M.add(context_lines)
     -- Copy to clipboard if enabled
     local config = require("code-review.config")
     if config.get("comment.auto_copy_on_add") and comment_data then
-      -- Format the comment with full context (like <leader>rs shows)
-      local formatted_lines = M.format_as_markdown(comment_data, true, false)
-      local formatted_text = table.concat(formatted_lines, "\n")
+      local formatter = require("code-review.formatter")
+      local formatted_text = formatter.format({ comment_data })
       utils.copy_to_clipboard(formatted_text)
     end
 
@@ -296,61 +295,6 @@ add_virtual_text = function(bufnr, comments)
       end
     end
   end
-end
-
---- Format a single comment as markdown lines
----@param comment_data table The comment object
----@param include_header boolean Whether to include file/line header
----@param use_ansi boolean Whether to use ANSI color codes for fzf
----@return table Lines of formatted markdown
-function M.format_as_markdown(comment_data, include_header, use_ansi)
-  local lines = {}
-
-  -- ANSI color codes for fzf
-  local colors = {
-    header = use_ansi and "\x1b[1;34m" or "", -- Bold blue
-    section = use_ansi and "\x1b[1;33m" or "", -- Bold yellow
-    code = use_ansi and "\x1b[36m" or "", -- Cyan
-    reset = use_ansi and "\x1b[0m" or "", -- Reset
-  }
-
-  if include_header then
-    -- Header with file and line info
-    table.insert(
-      lines,
-      string.format(
-        "%s## %s:%d-%d%s",
-        colors.header,
-        comment_data.file,
-        comment_data.line_start,
-        comment_data.line_end,
-        colors.reset
-      )
-    )
-    table.insert(lines, "")
-  end
-
-  -- Code context if available
-  if comment_data.context_lines and #comment_data.context_lines > 0 then
-    table.insert(lines, colors.section .. "### Context" .. colors.reset)
-    table.insert(lines, "")
-    table.insert(lines, colors.code .. "```" .. vim.fn.fnamemodify(comment_data.file, ":e"))
-    for _, line in ipairs(comment_data.context_lines) do
-      table.insert(lines, line)
-    end
-    table.insert(lines, "```" .. colors.reset)
-    table.insert(lines, "")
-  end
-
-  -- Comment content
-  table.insert(lines, colors.section .. "### Comment" .. colors.reset)
-  table.insert(lines, "")
-  -- Split comment by lines and add each line
-  for line in comment_data.comment:gmatch("[^\n]+") do
-    table.insert(lines, line)
-  end
-
-  return lines
 end
 
 return M

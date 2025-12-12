@@ -1,6 +1,6 @@
 local M = {}
 
-local comment = require("code-review.comment")
+local formatter = require("code-review.formatter")
 
 --- Create a custom previewer for Telescope that shows comment content
 function M.telescope_comment_previewer()
@@ -15,8 +15,8 @@ function M.telescope_comment_previewer()
       local comment_data = entry.value
       local bufnr = self.state.bufnr
 
-      -- Use common formatter (no ANSI for Telescope)
-      local lines = comment.format_as_markdown(comment_data, true, false)
+      -- Use formatter for preview (no ANSI for Telescope)
+      local lines = formatter.format_single(comment_data)
 
       -- Make buffer modifiable before setting content
       vim.api.nvim_buf_set_option(bufnr, "modifiable", true)

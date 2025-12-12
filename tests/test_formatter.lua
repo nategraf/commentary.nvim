@@ -88,6 +88,81 @@ This needs refactoring]]
   MiniTest.expect.match(comment.comment, "10: local function foo")
 end
 
+T["format minimal single line"] = function()
+  local formatter = require("code-review.formatter")
+  local config = require("code-review.config")
+
+  -- Setup with minimal format
+  config.setup({ output = { format = "minimal" } })
+
+  local comments = {
+    {
+      id = "test-1",
+      file = "src/main.lua",
+      line_start = 42,
+      line_end = 42,
+      comment = "This needs error handling",
+      timestamp = 1234567890,
+    },
+  }
+
+  local result = formatter.format(comments)
+  MiniTest.expect.equality(result, "src/main.lua:L42: This needs error handling")
+
+  -- Reset to detailed format
+  config.setup({ output = { format = "detailed" } })
+end
+
+T["format minimal multi-line range"] = function()
+  local formatter = require("code-review.formatter")
+  local config = require("code-review.config")
+
+  -- Setup with minimal format
+  config.setup({ output = { format = "minimal" } })
+
+  local comments = {
+    {
+      id = "test-1",
+      file = "src/main.lua",
+      line_start = 100,
+      line_end = 105,
+      comment = "Consider using table.filter",
+      timestamp = 1234567890,
+    },
+  }
+
+  local result = formatter.format(comments)
+  MiniTest.expect.equality(result, "src/main.lua:L100-105: Consider using table.filter")
+
+  -- Reset to detailed format
+  config.setup({ output = { format = "detailed" } })
+end
+
+T["format minimal joins multi-line comments"] = function()
+  local formatter = require("code-review.formatter")
+  local config = require("code-review.config")
+
+  -- Setup with minimal format
+  config.setup({ output = { format = "minimal" } })
+
+  local comments = {
+    {
+      id = "test-1",
+      file = "src/main.lua",
+      line_start = 10,
+      line_end = 10,
+      comment = "First line\nSecond line",
+      timestamp = 1234567890,
+    },
+  }
+
+  local result = formatter.format(comments)
+  MiniTest.expect.equality(result, "src/main.lua:L10: First line Second line")
+
+  -- Reset to detailed format
+  config.setup({ output = { format = "detailed" } })
+end
+
 T["save to file"] = function()
   local formatter = require("code-review.formatter")
   local test_dir = vim.fn.tempname()

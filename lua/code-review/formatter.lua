@@ -70,11 +70,87 @@ local function format_markdown(comments)
   return table.concat(lines, "\n")
 end
 
---- Format comments to markdown
+--- Format comments to minimal format (flat, for AI)
+---@param comments table[]
+---@return string
+local function format_minimal(comments)
+  local lines = {}
+  for _, comment in ipairs(comments) do
+    local location
+    if comment.line_start == comment.line_end then
+      location = string.format("%s:L%d", comment.file, comment.line_start)
+    else
+      location = string.format("%s:L%d-%d", comment.file, comment.line_start, comment.line_end)
+    end
+    -- Join multi-line comments into single line
+    local text = comment.comment:gsub("\n", " ")
+    table.insert(lines, location .. ": " .. text)
+  end
+  return table.concat(lines, "\n")
+end
+
+--- Format comments based on configured format
 ---@param comments table[]
 ---@return string
 function M.format(comments)
-  return format_markdown(comments)
+  local format_type = config.get("output.format") or "detailed"
+  if format_type == "minimal" then
+    return format_minimal(comments)
+  else
+    return format_markdown(comments)
+  end
+end
+
+--- Format a single comment for preview display (always detailed)
+--- This is used for Telescope, fzf-lua, and buffer previews
+---@param comment table The comment object
+---@param opts? { include_header?: boolean, use_ansi?: boolean }
+---@return string[] Lines of formatted markdown
+function M.format_single(comment, opts)
+  opts = opts or {}
+  local include_header = opts.include_header ~= false -- default true
+  local use_ansi = opts.use_ansi or false
+
+  local lines = {}
+
+  -- ANSI color codes for fzf
+  local colors = {
+    header = use_ansi and "\x1b[1;34m" or "", -- Bold blue
+    section = use_ansi and "\x1b[1;33m" or "", -- Bold yellow
+    code = use_ansi and "\x1b[36m" or "", -- Cyan
+    reset = use_ansi and "\x1b[0m" or "", -- Reset
+  }
+
+  if include_header then
+    -- Header with file and line info
+    table.insert(
+      lines,
+      string.format("%s## %s:%d-%d%s", colors.header, comment.file, comment.line_start, comment.line_end, colors.reset)
+    )
+    table.insert(lines, "")
+  end
+
+  -- Code context if available
+  if comment.context_lines and #comment.context_lines > 0 then
+    table.insert(lines, colors.section .. "### Context" .. colors.reset)
+    table.insert(lines, "")
+    table.insert(lines, colors.code .. "```" .. vim.fn.fnamemodify(comment.file, ":e"))
+    for _, line in ipairs(comment.context_lines) do
+      table.insert(lines, line)
+    end
+    table.insert(lines, "```" .. colors.reset)
+    table.insert(lines, "")
+  end
+
+  -- Comment content
+  table.insert(lines, colors.section .. "### Comment" .. colors.reset)
+  table.insert(lines, "")
+  -- Split comment by lines and add each line
+  for line in comment.comment:gmatch("[^\n]+") do
+    table.insert(lines, line)
+  end
+
+  return lines
 end
 
 --- Parse formatted content back to comments

@@ -46,6 +46,8 @@ local defaults = {
     date_format = "%Y-%m-%d %H:%M:%S",
     -- Default save directory (nil means current directory)
     save_dir = nil,
+    -- Output format: "detailed" (full markdown) or "minimal" (flat, for AI)
+    format = "detailed",
   },
   -- Comment settings
   comment = {
@@ -148,6 +150,13 @@ end
 ---@param opts table User configuration
 function M.setup(opts)
   config = merge_config(opts)
+
+  -- Validate output.format
+  local valid_formats = { detailed = true, minimal = true }
+  local format = config.output and config.output.format
+  if format and not valid_formats[format] then
+    error(string.format("Invalid output.format: '%s'. Must be 'detailed' or 'minimal'", format))
+  end
 
   -- Create highlight groups
   vim.api.nvim_set_hl(0, "CodeReviewSign", { link = "Comment", default = true })

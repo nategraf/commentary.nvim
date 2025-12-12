@@ -130,6 +130,7 @@ require('code-review').setup({
   output = {
     date_format = '%Y-%m-%d %H:%M:%S',
     save_dir = nil, -- nil = current directory
+    format = 'detailed', -- 'detailed' or 'minimal' (flat, for AI)
   },
   -- Comment settings
   comment = {
@@ -372,13 +373,17 @@ Perfect for PR reviews! Use code-review.nvim alongside [diffview.nvim](https://g
 
 ## 📄 Output Format
 
-Reviews are saved in a clean, readable Markdown format:
+Two output formats are available via `output.format` setting:
+
+### Detailed Format (Default)
+
+Full format with code context, timestamps, and headers:
 
 ````markdown
 # Code Review
 
 **Date**: 2024-01-30 14:30:00
-**Total Comments**: 3
+**Total Comments**: 2
 
 ## src/main.lua
 
@@ -391,21 +396,18 @@ Reviews are saved in a clean, readable Markdown format:
 ```
 
 This function needs error handling for nil input.
+````
 
-### Lines 100-105
+### Minimal Format
 
-**Time**: 2024-01-30 14:30:15
+Flat format optimized for AI assistants (reduces token usage):
 
-```lua
-100: for i, item in ipairs(items) do
-101:   if item.valid then
-102:     table.insert(results, item)
-103:   end
-104: end
+```
+src/main.lua:L42: This function needs error handling for nil input.
+src/main.lua:L100-105: Consider using table.filter for better readability.
 ```
 
-Consider using table.filter for better readability.
-````
+With visual selection, column information is included: `file.lua:L42:10-45:20: comment`
 
 ## 💾 Storage Backends
 
