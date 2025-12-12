@@ -290,12 +290,22 @@ local function invalidate_cache()
   cache_timestamp = 0
 end
 
---- Initialize storage
-function M.init()
-  -- Ensure storage directory exists
+--- Ensure storage directory exists (lazy creation)
+---@return string dir
+local function ensure_storage_dir()
   local dir = get_storage_dir()
   if vim.fn.isdirectory(dir) == 0 then
     vim.fn.mkdir(dir, "p")
+  end
+  return dir
+end
+
+--- Initialize storage
+function M.init()
+  -- Only run migration if storage directory already exists
+  local dir = get_storage_dir()
+  if vim.fn.isdirectory(dir) == 0 then
+    return
   end
 
   -- Migrate comments from comments/ subdirectory back to root
@@ -405,7 +415,7 @@ function M.add(comment_data)
   end
 
   -- For new comments (not replies), create a new file
-  local dir = get_storage_dir()
+  local dir = ensure_storage_dir()
   local filename = get_comment_filename(comment_data)
   -- Extract ID without status prefix
   local _, id = parse_filename(filename)

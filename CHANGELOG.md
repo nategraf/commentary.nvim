@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Output format selection with `output.format` option: `detailed` (default) or `minimal` for AI assistants
 
+### Changed
+- File storage directory is now created lazily (only when first comment is added)
+
 ## [0.5.0] - 2025-07-12
 
 ### Added
