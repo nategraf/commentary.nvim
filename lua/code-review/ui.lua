@@ -108,7 +108,8 @@ end
 ---@param callback function(string?) Called with the comment text or nil if cancelled
 ---@param context table? Optional context with line_start and line_end
 ---@param title string? Optional window title (defaults to config)
-function M.show_comment_input(callback, context, title)
+---@param initial_text string? Optional text used to populate the input buffer
+function M.show_comment_input(callback, context, title, initial_text)
   local conf = config.get("ui.input_window")
 
   -- Create buffer
@@ -121,6 +122,11 @@ function M.show_comment_input(callback, context, title)
   vim.api.nvim_buf_set_option(buf, "breakindent", true)
   -- Set unique buffer name for identification
   vim.api.nvim_buf_set_name(buf, string.format("codereview://input/%d", buf))
+
+  if initial_text ~= nil then
+    local initial_lines = vim.split(initial_text, "\n", { plain = true })
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, initial_lines)
+  end
 
   -- Variables to track window and dynamic height
   local win
@@ -174,6 +180,12 @@ function M.show_comment_input(callback, context, title)
   -- Ensure wrap options are set for the window
   vim.api.nvim_win_set_option(win, "wrap", true)
   vim.api.nvim_win_set_option(win, "linebreak", true)
+
+  if initial_text ~= nil then
+    local line_count = vim.api.nvim_buf_line_count(buf)
+    local last_line = vim.api.nvim_buf_get_lines(buf, line_count - 1, line_count, false)[1] or ""
+    vim.api.nvim_win_set_cursor(win, { line_count, #last_line })
+  end
 
   -- Setup keymaps
   local function close_with_text()
@@ -286,7 +298,7 @@ function M.show_comment_input(callback, context, title)
   })
 
   -- Start in insert mode
-  vim.cmd("startinsert")
+  vim.cmd(initial_text ~= nil and "startinsert!" or "startinsert")
 end
 
 --- Show preview window

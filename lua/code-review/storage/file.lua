@@ -453,6 +453,79 @@ function M.get(id)
   return nil
 end
 
+--- Update a comment while preserving the rest of its thread
+---@param id string Comment ID
+---@param updates table Fields to update
+---@return boolean success
+function M.update(id, updates)
+  local comments = load_comments()
+  local target = nil
+
+  for _, comment in ipairs(comments) do
+    if comment.id == id then
+      target = comment
+      break
+    end
+  end
+
+  if not target then
+    return false
+  end
+
+  local root_id = target.id
+  if target.thread_id then
+    root_id = target.thread_id:match("^(.+)_thread$") or target.id
+  end
+
+  local thread_comments = {}
+  for _, comment in ipairs(comments) do
+    local in_thread = target.thread_id and comment.thread_id == target.thread_id
+    if in_thread or (not target.thread_id and comment.id == target.id) then
+      local updated_comment = vim.deepcopy(comment)
+      if comment.id == id then
+        updated_comment = vim.tbl_extend("force", updated_comment, updates)
+        updated_comment.id = comment.id
+        updated_comment.timestamp = comment.timestamp
+      end
+      table.insert(thread_comments, updated_comment)
+    end
+  end
+
+  local config = require("code-review.config")
+  local status_management = config.get("comment.status_management")
+  local filepath = nil
+
+  if status_management then
+    local files = vim.fn.glob(get_storage_dir() .. "/*_" .. root_id .. ".md", false, true)
+    filepath = files[1]
+  end
+
+  if not filepath then
+    local legacy_filepath = get_storage_dir() .. "/" .. root_id .. ".md"
+    if vim.fn.filereadable(legacy_filepath) == 1 then
+      filepath = legacy_filepath
+    end
+  end
+
+  if not filepath then
+    return false
+  end
+
+  local formatted_text
+  if target.thread_id then
+    formatted_text = M.format_thread_as_markdown(thread_comments)
+  else
+    formatted_text = M.format_comment_as_markdown(thread_comments[1])
+  end
+
+  if not utils.save_to_file(filepath, formatted_text) then
+    return false
+  end
+
+  invalidate_cache()
+  return true
+end
+
 --- Delete a comment by ID
 ---@param id string
 ---@return boolean success

@@ -114,7 +114,6 @@ end
 ---@param updates table Fields to update
 ---@return boolean success
 function M.update_comment(id, updates)
-  -- For file storage, we need to delete and re-add
   local storage_backend = get_storage()
   local comment = storage_backend.get(id)
   if not comment then
@@ -127,7 +126,15 @@ function M.update_comment(id, updates)
   updated_comment.id = comment.id
   updated_comment.timestamp = comment.timestamp
 
-  -- Delete old and add new
+  if storage_backend.update then
+    if storage_backend.update(id, updated_comment) then
+      M.refresh_ui()
+      return true
+    end
+    return false
+  end
+
+  -- Compatibility fallback for third-party storage backends.
   if storage_backend.delete(id) then
     storage_backend.add(updated_comment)
     M.refresh_ui()

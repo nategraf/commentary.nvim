@@ -58,6 +58,23 @@ function M.get(id)
   return nil
 end
 
+--- Update a comment
+---@param id string Comment ID
+---@param updates table Fields to update
+---@return boolean success
+function M.update(id, updates)
+  for index, comment in ipairs(session.comments) do
+    if comment.id == id then
+      local updated_comment = vim.tbl_extend("force", comment, updates)
+      updated_comment.id = comment.id
+      updated_comment.timestamp = comment.timestamp
+      session.comments[index] = updated_comment
+      return true
+    end
+  end
+  return false
+end
+
 --- Delete a comment by ID
 ---@param id string
 ---@return boolean success

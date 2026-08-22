@@ -317,6 +317,34 @@ T["filename status management"]["wildcard search for file updates"] = function()
   MiniTest.expect.equality(found_updated_text, true)
 end
 
+T["filename status management"]["editing preserves every comment in a file-backed thread"] = function()
+  local root_id = state.add_comment({
+    file = "thread_edit_test.lua",
+    line_start = 8,
+    line_end = 8,
+    comment = "Root before edit",
+    author = "User",
+  })
+  state.add_reply(root_id, "Reply before edit")
+
+  local thread_id = root_id .. "_thread"
+  local comments = state.get_thread_comments(thread_id)
+  MiniTest.expect.equality(#comments, 2)
+
+  MiniTest.expect.equality(state.update_comment(root_id, { comment = "Root after edit" }), true)
+  comments = state.get_thread_comments(thread_id)
+  MiniTest.expect.equality(#comments, 2)
+  MiniTest.expect.equality(comments[1].comment, "Root after edit")
+  MiniTest.expect.equality(comments[2].comment, "Reply before edit")
+
+  local reply_id = comments[2].id
+  MiniTest.expect.equality(state.update_comment(reply_id, { comment = "Reply after edit" }), true)
+  comments = state.get_thread_comments(thread_id)
+  MiniTest.expect.equality(#comments, 2)
+  MiniTest.expect.equality(comments[1].comment, "Root after edit")
+  MiniTest.expect.equality(comments[2].comment, "Reply after edit")
+end
+
 T["filename status management"]["status preserved in list view"] = function()
   -- Create comments with different statuses
   local comment1_id = state.add_comment({

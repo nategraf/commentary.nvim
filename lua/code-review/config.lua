@@ -119,6 +119,11 @@ local defaults = {
       mode = "n",
       key = "<leader>rd",
     },
+    -- Edit comment at cursor
+    edit_comment = {
+      mode = "n",
+      key = "<leader>re",
+    },
     -- Reply to comment at cursor
     reply_comment = {
       mode = "n",

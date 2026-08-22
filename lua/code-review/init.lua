@@ -59,6 +59,10 @@ function M.setup(opts)
     M.delete_comment_at_cursor()
   end, { desc = "Delete comment at cursor position" })
 
+  vim.api.nvim_create_user_command("CodeReviewEditComment", function()
+    M.edit_comment_at_cursor()
+  end, { desc = "Edit comment at cursor position" })
+
   vim.api.nvim_create_user_command("CodeReviewReply", function()
     M.reply_to_comment_at_cursor()
   end, { desc = "Reply to comment at cursor position" })
@@ -106,6 +110,7 @@ function M.setup(opts)
             show_comment = "Show comment at cursor",
             list_comments = "List all comments",
             delete_comment = "Delete comment at cursor",
+            edit_comment = "Edit comment at cursor",
             reply_comment = "Reply to comment at cursor",
             resolve_thread = "Resolve thread at cursor",
           }
@@ -121,6 +126,7 @@ function M.setup(opts)
             show_comment = M.show_comment_at_cursor,
             list_comments = M.list_comments,
             delete_comment = M.delete_comment_at_cursor,
+            edit_comment = M.edit_comment_at_cursor,
             reply_comment = M.reply_to_comment_at_cursor,
             resolve_thread = M.resolve_thread_at_cursor,
           }
@@ -487,6 +493,70 @@ function M.set_review_status(status)
   review.update_status(status)
 end
 
+local function comment_picker_label(item)
+  local first_line = item.comment:match("^[^\n]*") or item.comment
+  if #first_line > 50 then
+    first_line = first_line:sub(1, 47) .. "..."
+  end
+  return string.format("Line %d-%d [%s]: %s", item.line_start, item.line_end, item.author or "unknown", first_line)
+end
+
+local function select_comment(comments, prompt, callback)
+  vim.ui.select(comments, {
+    prompt = prompt,
+    format_item = comment_picker_label,
+  }, callback)
+end
+
+local function show_comment_editor(comment_data)
+  ui.show_comment_input(function(updated_text)
+    if updated_text == nil then
+      return
+    end
+    if vim.trim(updated_text) == "" then
+      vim.notify("Comment cannot be empty; use delete to remove it", vim.log.levels.WARN)
+      return
+    end
+    if updated_text == comment_data.comment then
+      return
+    end
+
+    if state.update_comment(comment_data.id, { comment = updated_text }) then
+      vim.notify("Comment updated")
+    else
+      vim.notify("Failed to update comment", vim.log.levels.ERROR)
+    end
+  end, {
+    file = comment_data.file,
+    line_start = comment_data.line_start,
+    line_end = comment_data.line_end,
+    lines = comment_data.context_lines or {},
+  }, " Edit Comment (C-CR to submit) ", comment_data.comment)
+end
+
+--- Edit comment at cursor position
+function M.edit_comment_at_cursor()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local file = utils.normalize_path(vim.api.nvim_buf_get_name(bufnr))
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local line_comments = state.get_comments_at_location(file, row)
+
+  if #line_comments == 0 then
+    vim.notify("No comment at cursor position", vim.log.levels.WARN)
+    return
+  end
+
+  if #line_comments > 1 then
+    select_comment(line_comments, "Select comment to edit:", function(choice)
+      if choice then
+        show_comment_editor(choice)
+      end
+    end)
+  else
+    show_comment_editor(line_comments[1])
+  end
+end
+
 --- Delete comment at cursor position
 function M.delete_comment_at_cursor()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -503,19 +573,13 @@ function M.delete_comment_at_cursor()
 
   -- If multiple comments, let user choose
   if #line_comments > 1 then
-    vim.ui.select(line_comments, {
-      prompt = "Select comment to delete:",
-      format_item = function(item)
-        local first_line = item.comment:match("^[^\n]*") or item.comment
-        if #first_line > 50 then
-          first_line = first_line:sub(1, 47) .. "..."
-        end
-        return string.format("Line %d-%d: %s", item.line_start, item.line_end, first_line)
-      end,
-    }, function(choice)
+    select_comment(line_comments, "Select comment to delete:", function(choice)
       if choice then
-        state.delete_comment(choice.id)
-        vim.notify("Comment deleted")
+        if state.delete_comment(choice.id) then
+          vim.notify("Comment deleted")
+        else
+          vim.notify("Failed to delete comment", vim.log.levels.ERROR)
+        end
       end
     end)
   else
@@ -530,8 +594,11 @@ function M.delete_comment_at_cursor()
       prompt = string.format("Delete comment: %s?", first_line),
     }, function(choice)
       if choice == "Yes" then
-        state.delete_comment(comment_data.id)
-        vim.notify("Comment deleted")
+        if state.delete_comment(comment_data.id) then
+          vim.notify("Comment deleted")
+        else
+          vim.notify("Failed to delete comment", vim.log.levels.ERROR)
+        end
       end
     end)
   end

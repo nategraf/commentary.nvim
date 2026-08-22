@@ -164,6 +164,7 @@ copy = '<leader>ry',
     show_comment = '<leader>rs',
     list_comments = '<leader>rl',
     delete_comment = '<leader>rd',
+    edit_comment = '<leader>re',
   },
 })
 ```
@@ -191,6 +192,7 @@ vim.keymap.set('n', '<leader>rp', cr.preview, { desc = "Preview review" })
 vim.keymap.set('n', '<leader>rw', cr.save, { desc = "Save review to file" })
 vim.keymap.set('n', '<leader>ry', cr.copy, { desc = "Copy review to clipboard" })
 vim.keymap.set('n', '<leader>rs', cr.show_comment_at_cursor, { desc = "Show comment at cursor" })
+vim.keymap.set('n', '<leader>re', cr.edit_comment_at_cursor, { desc = "Edit comment at cursor" })
 vim.keymap.set('n', '<leader>rx', cr.clear, { desc = "Clear all comments" })
 ```
 
@@ -277,6 +279,7 @@ end
 | `:CodeReviewCopy`            | `<leader>ry`   | Copy review to clipboard                                    |
 | `:CodeReviewClear`           | `<leader>rx`   | Clear all review comments                                   |
 | `:CodeReviewDeleteComment`   | `<leader>rd`   | Delete comment at cursor position                           |
+| `:CodeReviewEditComment`     | `<leader>re`   | Edit comment at cursor position                             |
 | `:CodeReviewResolveThread`   | -              | Mark current thread as resolved                             |
 | `:CodeReviewReopenThread`    | -              | Reopen a resolved thread                                    |
 
@@ -299,6 +302,7 @@ end
 | `require('code-review').copy()`                     | Copy to clipboard                       |
 | `require('code-review').clear()`                    | Clear all comments                      |
 | `require('code-review').delete_comment_at_cursor()` | Delete comment at cursor                |
+| `require('code-review').edit_comment_at_cursor()`   | Edit comment at cursor                  |
 
 ### Visual Mode Selection
 
@@ -307,6 +311,12 @@ end
 3. Press `<leader>rc` to add a comment to the selection
 
 ### Editing Reviews
+
+Use `<leader>re` to edit a comment at the cursor. The existing text is loaded
+into the comment input window. If a thread contains multiple comments, select
+the root comment or reply to edit from the picker.
+
+You can also edit the full review from the preview buffer:
 
 The preview buffer is fully editable. You can:
 
