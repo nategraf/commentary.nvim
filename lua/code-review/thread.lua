@@ -54,6 +54,7 @@ function M.create_reply(parent_comment, reply_text, author)
     author = author or vim.fn.expand("$USER"),
     timestamp = os.time(),
     context_lines = parent_comment.context_lines, -- Inherit context from parent
+    anchor = parent_comment.anchor and vim.deepcopy(parent_comment.anchor) or nil,
     replies = {},
   }
 end

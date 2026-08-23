@@ -51,6 +51,10 @@ local defaults = {
   },
   -- Comment settings
   comment = {
+    anchor = {
+      -- Surrounding lines used to validate and recover persisted anchors.
+      context_lines = 3,
+    },
     -- Storage configuration
     storage = {
       -- Backend type: "memory" or "file"

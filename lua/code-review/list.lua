@@ -1,7 +1,31 @@
 local M = {}
 
+local anchor = require("code-review.anchor")
 local state = require("code-review.state")
 local preview = require("code-review.list-preview")
+
+local function anchor_label(comment)
+  local status = comment.anchor_status
+  if status and status ~= "attached" then
+    return string.format("[%s] ", status)
+  end
+  return ""
+end
+
+local function jump_to_comment(comment)
+  if not anchor.is_attached(comment) then
+    vim.notify(
+      string.format("Comment anchor is %s; reattachment is required", comment.anchor_status or "unresolved"),
+      vim.log.levels.WARN
+    )
+    return false
+  end
+
+  vim.cmd("edit " .. vim.fn.fnameescape(comment.file))
+  local line = math.max(1, math.min(comment.line_start, vim.api.nvim_buf_line_count(0)))
+  vim.api.nvim_win_set_cursor(0, { line, 0 })
+  return true
+end
 
 --- Convert comment to quickfix item
 ---@param comment table
@@ -13,11 +37,13 @@ local function comment_to_qf_item(comment)
     text = text:sub(1, 77) .. "..."
   end
 
+  local attached = anchor.is_attached(comment)
   return {
-    filename = comment.file,
-    lnum = comment.line_start,
-    col = 1,
-    text = text,
+    filename = attached and comment.file or "",
+    lnum = attached and comment.line_start or 0,
+    col = attached and 1 or 0,
+    valid = attached and 1 or 0,
+    text = anchor_label(comment) .. text,
     -- Store full comment in user data
     user_data = comment,
   }
@@ -147,7 +173,7 @@ function M.list_with_telescope()
     local filename = comment.file -- Use full path
     local line_info = comment.line_start == comment.line_end and tostring(comment.line_start)
       or string.format("%d-%d", comment.line_start, comment.line_end)
-    local text = comment.comment:match("^[^\n]*") or comment.comment
+    local text = anchor_label(comment) .. (comment.comment:match("^[^\n]*") or comment.comment)
 
     return displayer({
       { filename, "TelescopeResultsIdentifier" },
@@ -183,9 +209,7 @@ function M.list_with_telescope()
           actions.close(prompt_bufnr)
           local selection = action_state.get_selected_entry()
           if selection then
-            -- Jump to the comment location
-            vim.cmd("edit " .. selection.filename)
-            vim.api.nvim_win_set_cursor(0, { selection.lnum, 0 })
+            jump_to_comment(selection.value)
           end
         end)
         return true
@@ -329,14 +353,16 @@ function M.list_with_fzf_lua()
 
   -- Create entries for display (use full path like yank function)
   local entries = {}
+  local comments_by_entry = {}
   for _, comment_data in ipairs(comments) do
     local line_info = comment_data.line_start == comment_data.line_end and tostring(comment_data.line_start)
       or string.format("%d-%d", comment_data.line_start, comment_data.line_end)
     local text = comment_data.comment:match("^[^\n]*") or comment_data.comment
 
     -- Use full path:line: format for display (same as yank)
-    local entry = string.format("%s:%s: %s", comment_data.file, line_info, text)
+    local entry = string.format("%s:%s: %s%s", comment_data.file, line_info, anchor_label(comment_data), text)
     table.insert(entries, entry)
+    comments_by_entry[entry] = comment_data
   end
 
   -- Setup cleanup function
@@ -369,17 +395,9 @@ function M.list_with_fzf_lua()
           return
         end
 
-        -- Parse selection
-        local line = selected[1]
-        local filepath, line_num = line:match("^([^:]+):(%d+)")
-        if not filepath or not line_num then
-          filepath, line_num = line:match("^([^:]+):(%d+)%-")
-        end
-
-        if filepath and line_num then
-          -- Direct open file since we have full path
-          vim.cmd("edit " .. filepath)
-          vim.api.nvim_win_set_cursor(0, { tonumber(line_num), 0 })
+        local comment = comments_by_entry[selected[1]]
+        if comment then
+          jump_to_comment(comment)
         end
       end,
     },
@@ -438,8 +456,9 @@ function M.list_threads_with_quickfix()
 
     -- Create preview text with thread info
     local text = string.format(
-      "%s%s (%d comments)",
+      "%s%s%s (%d comments)",
       status_icon,
+      anchor_label(root_comment),
       root_comment.comment:match("^[^\n]*") or root_comment.comment,
       #thread_data.replies + 1
     )
@@ -448,10 +467,12 @@ function M.list_threads_with_quickfix()
       text = text:sub(1, 77) .. "..."
     end
 
+    local attached = anchor.is_attached(root_comment)
     table.insert(qf_items, {
-      filename = root_comment.file,
-      lnum = root_comment.line_start,
-      col = 1,
+      filename = attached and root_comment.file or "",
+      lnum = attached and root_comment.line_start or 0,
+      col = attached and 1 or 0,
+      valid = attached and 1 or 0,
       text = text,
       user_data = root_comment,
     })
@@ -537,10 +558,11 @@ function M.list_threads_with_fzf_lua()
     end
 
     local entry = string.format(
-      "%s:%s: %s%s (%d comments)",
+      "%s:%s: %s%s%s (%d comments)",
       root_comment.file,
       line_info,
       status_icon,
+      anchor_label(root_comment),
       preview_text,
       #thread_info.data.replies + 1
     )
@@ -713,9 +735,7 @@ function M.list_threads_with_fzf_lua()
         local line = selected[1]
         for _, entry in ipairs(entries) do
           if entry.display == line then
-            local comment = entry.root_comment
-            vim.cmd("edit " .. comment.file)
-            vim.api.nvim_win_set_cursor(0, { comment.line_start, 0 })
+            jump_to_comment(entry.root_comment)
             break
           end
         end
@@ -805,7 +825,8 @@ function M.list_threads_with_telescope()
     local line_info = root_comment.line_start == root_comment.line_end and tostring(root_comment.line_start)
       or string.format("%d-%d", root_comment.line_start, root_comment.line_end)
 
-    local preview_text = root_comment.comment:match("^[^\n]*") or root_comment.comment
+    local preview_text = anchor_label(root_comment)
+      .. (root_comment.comment:match("^[^\n]*") or root_comment.comment)
     if #preview_text > 50 then
       preview_text = preview_text:sub(1, 47) .. "..."
     end
@@ -844,8 +865,7 @@ function M.list_threads_with_telescope()
           actions.close(prompt_bufnr)
           local selection = action_state.get_selected_entry()
           if selection then
-            vim.cmd("edit " .. selection.filename)
-            vim.api.nvim_win_set_cursor(0, { selection.lnum, 0 })
+            jump_to_comment(selection.value.data.root_comment)
           end
         end)
         return true
@@ -871,5 +891,8 @@ function M.list_threads()
   -- Fallback to quickfix
   M.list_threads_with_quickfix()
 end
+
+M._comment_to_qf_item = comment_to_qf_item
+M._jump_to_comment = jump_to_comment
 
 return M

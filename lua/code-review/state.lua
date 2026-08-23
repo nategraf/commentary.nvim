@@ -46,6 +46,7 @@ end
 
 --- Sync state from storage (for file backend)
 function M.sync_from_storage()
+  require("code-review.anchor").invalidate_cache()
   -- Explicitly reload storage if it has reload method
   if storage and storage.reload then
     storage.reload()
@@ -58,6 +59,7 @@ end
 --- Clear all comments but keep session active
 function M.clear()
   get_storage().clear()
+  require("code-review.anchor").clear()
   M.refresh_ui()
   vim.notify("All comments cleared")
 end
@@ -99,7 +101,7 @@ end
 --- Get all comments
 ---@return table[]
 function M.get_comments()
-  return get_storage().get_all()
+  return require("code-review.anchor").resolve_all(get_storage().get_all())
 end
 
 --- Get a specific comment by ID
@@ -159,6 +161,8 @@ end
 function M.replace_comments(new_comments)
   local storage_backend = get_storage()
 
+  require("code-review.anchor").clear()
+
   -- Clear existing comments
   storage_backend.clear()
 
@@ -186,7 +190,14 @@ end
 ---@param line number
 ---@return table[]
 function M.get_comments_at_location(file, line)
-  return get_storage().get_at_location(file, line)
+  local results = {}
+  local anchor = require("code-review.anchor")
+  for _, comment in ipairs(M.get_comments()) do
+    if anchor.is_attached(comment) and comment.file == file and line >= comment.line_start and line <= comment.line_end then
+      table.insert(results, comment)
+    end
+  end
+  return results
 end
 
 --- Add a reply to a comment
@@ -283,6 +294,7 @@ end
 --- Reset internal state (for testing purposes)
 ---@private
 function M._reset()
+  require("code-review.anchor").clear()
   initialized = false
   storage = nil
 end

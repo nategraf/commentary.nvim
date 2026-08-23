@@ -470,6 +470,31 @@ require('code-review').setup({
 3. Comments persist across Neovim sessions
 4. External tools can monitor the directory for new files
 
+### Comment Anchoring
+
+New comments store a versioned anchor alongside the original file and line metadata. The anchor records the selected lines, nearby context, and Git provenance when available. This lets comments follow:
+
+- Unsaved edits in a live buffer, using Neovim extmarks
+- Lines inserted or removed above the comment
+- Moved or modified code, using exact/context matching and Neovim's native diff
+- Git-detected file renames and checkout changes
+
+Persisted `line_start` and `line_end` values remain unchanged, so existing review files and external tooling stay compatible. Resolved positions are computed when comments are displayed or navigated. Review files created by older versions, without an `anchor` field, continue to use their stored context and location.
+
+Resolution is deliberately conservative. A picker labels comments as `[modified]`, `[ambiguous]`, `[deleted]`, `[missing-file]`, or `[unresolved]` when appropriate. Modified comments remain navigable; unresolved states do not jump to a potentially unrelated line. Fuzzy matching and parser-aware matching are intentionally not used, avoiding plausible but incorrect reattachments.
+
+The number of surrounding lines captured for new anchors is configurable:
+
+```lua
+require('code-review').setup({
+  comment = {
+    anchor = {
+      context_lines = 3,
+    },
+  },
+})
+```
+
 ## 🔨 Development
 
 ### Setup

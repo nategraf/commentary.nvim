@@ -150,6 +150,37 @@ function M.setup(opts)
       desc = "Sync code review state and update UI",
     })
   end
+
+  local anchor = require("code-review.anchor")
+  local anchor_group = vim.api.nvim_create_augroup("CodeReviewAnchors", { clear = true })
+  vim.api.nvim_create_autocmd({ "BufReadPost", "BufFilePost", "FileChangedShellPost" }, {
+    group = anchor_group,
+    callback = function(args)
+      anchor.detach_buffer(args.buf)
+      anchor.invalidate_cache()
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(args.buf) then
+          state.sync_from_storage()
+        end
+      end)
+    end,
+    desc = "Re-resolve code review anchors after external file changes",
+  })
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = anchor_group,
+    callback = function(args)
+      anchor.detach_buffer(args.buf)
+    end,
+    desc = "Release code review anchors for deleted buffers",
+  })
+  vim.api.nvim_create_autocmd("DirChanged", {
+    group = anchor_group,
+    callback = function()
+      anchor.clear()
+      state.sync_from_storage()
+    end,
+    desc = "Re-resolve code review anchors in the new project",
+  })
 end
 
 --- Clear all comments

@@ -3,6 +3,7 @@ local M = {}
 local state = require("code-review.state")
 local utils = require("code-review.utils")
 local ui = require("code-review.ui")
+local anchor = require("code-review.anchor")
 
 -- Create namespaces once at module load
 local ns_virtual_text = vim.api.nvim_create_namespace("CodeReviewVirtualText")
@@ -41,6 +42,7 @@ function M.add(context_lines)
       line_end = context.line_end,
       comment = comment_text,
       context_lines = context.lines,
+      anchor = anchor.capture(context),
     }
 
     -- Add to state (state will handle UI refresh)
@@ -80,10 +82,12 @@ function M.update_indicators()
   -- Group comments by buffer
   local comments_by_buf = {}
   for _, comment in ipairs(comments) do
-    local bufnr = vim.fn.bufnr(comment.file)
-    if bufnr ~= -1 then
-      comments_by_buf[bufnr] = comments_by_buf[bufnr] or {}
-      table.insert(comments_by_buf[bufnr], comment)
+    if anchor.is_attached(comment) then
+      local bufnr = comment.anchor_bufnr or anchor.find_buffer(comment.file)
+      if bufnr then
+        comments_by_buf[bufnr] = comments_by_buf[bufnr] or {}
+        table.insert(comments_by_buf[bufnr], comment)
+      end
     end
   end
 

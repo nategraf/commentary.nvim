@@ -127,6 +127,7 @@ local function parse_comment_from_file(content, filename)
   local state = "start"
   local frontmatter = {}
   local context_lines = {}
+  local anchor = nil
   local in_context_code = false
   local comments = {}
 
@@ -139,6 +140,12 @@ local function parse_comment_from_file(content, filename)
     if state == "start" and line == "---" then
       state = "frontmatter"
     elseif state == "frontmatter" and line == "---" then
+      if frontmatter.anchor then
+        local ok, decoded = pcall(vim.json.decode, frontmatter.anchor)
+        if ok and type(decoded) == "table" then
+          anchor = decoded
+        end
+      end
       state = "content"
     elseif state == "frontmatter" then
       -- Parse YAML line
@@ -210,6 +217,7 @@ local function parse_comment_from_file(content, filename)
           author = parsed_author,
           timestamp = parsed_timestamp,
           context_lines = context_lines,
+          anchor = anchor and vim.deepcopy(anchor) or nil,
           thread_id = frontmatter.thread_id,
           thread_status = status, -- Add status from filename (may be nil if status_management is disabled)
         }
@@ -597,6 +605,9 @@ function M.format_comment_as_markdown(comment_data)
   table.insert(lines, "file: " .. comment_data.file)
   table.insert(lines, "line_start: " .. comment_data.line_start)
   table.insert(lines, "line_end: " .. comment_data.line_end)
+  if comment_data.anchor then
+    table.insert(lines, "anchor: " .. vim.json.encode(comment_data.anchor))
+  end
   table.insert(lines, "time: " .. os.date(date_format, comment_data.timestamp))
 
   if comment_data.author then
@@ -809,6 +820,9 @@ function M.format_thread_as_markdown(thread_comments)
   table.insert(lines, "file: " .. root_comment.file)
   table.insert(lines, "line_start: " .. root_comment.line_start)
   table.insert(lines, "line_end: " .. root_comment.line_end)
+  if root_comment.anchor then
+    table.insert(lines, "anchor: " .. vim.json.encode(root_comment.anchor))
+  end
   table.insert(lines, "time: " .. os.date(date_format, root_comment.timestamp))
 
   if root_comment.author then
@@ -867,5 +881,6 @@ end
 M.parse_filename = parse_filename
 M.make_filename = make_filename
 M.determine_thread_status = determine_thread_status
+M._parse_comment_from_file = parse_comment_from_file
 
 return M

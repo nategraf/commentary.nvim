@@ -9,32 +9,34 @@ require("code-review").setup({
   },
 })
 
-local T = MiniTest.new_set()
+local T = nil
 local original_select = vim.ui.select
 local original_show_comment_input = ui.show_comment_input
 local test_buf = nil
 
-T.hooks = {
-  pre_case = function()
-    state._reset()
-    memory._reset()
-    state.init()
-    state.clear()
+T = MiniTest.new_set({
+  hooks = {
+    pre_case = function()
+      state._reset()
+      memory._reset()
+      state.init()
+      state.clear()
 
-    test_buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_name(test_buf, vim.fn.getcwd() .. "/edit-comment-test.lua")
-    vim.api.nvim_buf_set_lines(test_buf, 0, -1, false, { "first", "second", "third" })
-    vim.api.nvim_set_current_buf(test_buf)
-    vim.api.nvim_win_set_cursor(0, { 2, 0 })
-  end,
-  post_case = function()
-    vim.ui.select = original_select
-    ui.show_comment_input = original_show_comment_input
-    if test_buf and vim.api.nvim_buf_is_valid(test_buf) then
-      vim.api.nvim_buf_delete(test_buf, { force = true })
-    end
-  end,
-}
+      test_buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_name(test_buf, vim.fn.getcwd() .. "/edit-comment-test.lua")
+      vim.api.nvim_buf_set_lines(test_buf, 0, -1, false, { "first", "second", "third" })
+      vim.api.nvim_set_current_buf(test_buf)
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    end,
+    post_case = function()
+      vim.ui.select = original_select
+      ui.show_comment_input = original_show_comment_input
+      if test_buf and vim.api.nvim_buf_is_valid(test_buf) then
+        vim.api.nvim_buf_delete(test_buf, { force = true })
+      end
+    end,
+  },
+})
 
 local function add_root(text)
   return state.add_comment({
