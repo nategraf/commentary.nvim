@@ -12,13 +12,38 @@ local function anchor_label(comment)
   return ""
 end
 
-local function format_telescope_thread_entry(thread_info)
+local function telescope_thread_entry_parts(thread_info)
   local root = thread_info.data.root_comment
   local filename = vim.fn.fnamemodify(root.file, ":~:.")
   local line = root.line_start == root.line_end and tostring(root.line_start)
     or string.format("%d-%d", root.line_start, root.line_end)
   local text = root.comment:match("^[^\n]*") or root.comment
-  return string.format("%s:%s: %s%s", filename, line, anchor_label(root), text)
+  return filename, line, anchor_label(root) .. text
+end
+
+local function format_telescope_thread_entry(thread_info)
+  local filename, line, text = telescope_thread_entry_parts(thread_info)
+  return string.format("%s:%s: %s", filename, line, text)
+end
+
+local function make_telescope_thread_displayer(entry_display)
+  local displayer = entry_display.create({
+    separator = "",
+    items = {
+      {},
+      {},
+      { remaining = true },
+    },
+  })
+
+  return function(entry)
+    local filename, line, text = telescope_thread_entry_parts(entry.value)
+    return displayer({
+      { filename .. ":", "TelescopeResultsIdentifier" },
+      { line .. ": ", "TelescopeResultsNumber" },
+      { text, "TelescopeResultsComment" },
+    })
+  end
 end
 
 local function jump_to_comment(comment)
@@ -769,6 +794,8 @@ function M.list_threads_with_telescope()
     return a_root.line_start < b_root.line_start
   end)
 
+  local make_display = make_telescope_thread_displayer(entry_display)
+
   pickers
     .new({}, {
       prompt_title = "Code Review Threads",
@@ -776,11 +803,11 @@ function M.list_threads_with_telescope()
         results = thread_list,
         entry_maker = function(thread_info)
           local root_comment = thread_info.data.root_comment
-          local display = format_telescope_thread_entry(thread_info)
+          local ordinal = format_telescope_thread_entry(thread_info)
           return {
             value = thread_info,
-            display = display,
-            ordinal = display,
+            display = make_display,
+            ordinal = ordinal,
             filename = root_comment.file,
             lnum = root_comment.line_start,
             col = 1,
@@ -828,5 +855,6 @@ end
 M._comment_to_qf_item = comment_to_qf_item
 M._jump_to_comment = jump_to_comment
 M._format_telescope_thread_entry = format_telescope_thread_entry
+M._make_telescope_thread_displayer = make_telescope_thread_displayer
 
 return M
