@@ -12,6 +12,15 @@ local function anchor_label(comment)
   return ""
 end
 
+local function format_telescope_thread_entry(thread_info)
+  local root = thread_info.data.root_comment
+  local filename = vim.fn.fnamemodify(root.file, ":~:.")
+  local line = root.line_start == root.line_end and tostring(root.line_start)
+    or string.format("%d-%d", root.line_start, root.line_end)
+  local text = root.comment:match("^[^\n]*") or root.comment
+  return string.format("%s:%s: %s%s", filename, line, anchor_label(root), text)
+end
+
 local function jump_to_comment(comment)
   if not anchor.is_attached(comment) then
     vim.notify(
@@ -141,7 +150,6 @@ function M.list_with_telescope()
   local conf = require("telescope.config").values
   local actions = require("telescope.actions")
   local action_state = require("telescope.actions.state")
-  local entry_display = require("telescope.pickers.entry_display")
 
   local comments = state.get_comments()
 
@@ -761,57 +769,6 @@ function M.list_threads_with_telescope()
     return a_root.line_start < b_root.line_start
   end)
 
-  -- Create displayer
-  local displayer = entry_display.create({
-    separator = " │ ",
-    items = {
-      { width = 3 }, -- icon
-      { width = 30 }, -- file
-      { width = 6 }, -- line
-      { width = 50 }, -- preview
-      { remaining = true }, -- comment count
-    },
-  })
-
-  local function make_display(entry)
-    local thread_info = entry.value
-    local root_comment = thread_info.data.root_comment
-
-    -- Get status icon and highlight (match virtual text)
-    local status_icon = ""
-    local icon_hl = "Comment"
-    if root_comment.thread_status == "action-required" then
-      status_icon = "○" -- Match virtual text
-      icon_hl = "CodeReviewActionRequired"
-    elseif root_comment.thread_status == "waiting-review" then
-      status_icon = "󰇮" -- Mail icon, match virtual text
-      icon_hl = "CodeReviewWaitingReview"
-    elseif thread_info.status == "resolved" then
-      status_icon = "✓"
-      icon_hl = "CodeReviewResolved"
-    end
-
-    local filename = vim.fn.fnamemodify(root_comment.file, ":~:.")
-    local line_info = root_comment.line_start == root_comment.line_end and tostring(root_comment.line_start)
-      or string.format("%d-%d", root_comment.line_start, root_comment.line_end)
-
-    local preview_text = anchor_label(root_comment)
-      .. (root_comment.comment:match("^[^\n]*") or root_comment.comment)
-    if #preview_text > 50 then
-      preview_text = preview_text:sub(1, 47) .. "..."
-    end
-
-    local comment_count = string.format("(%d comments)", #thread_info.data.replies + 1)
-
-    return displayer({
-      { status_icon, icon_hl },
-      { filename, "TelescopeResultsIdentifier" },
-      { line_info, "TelescopeResultsNumber" },
-      { preview_text, "TelescopeResultsComment" },
-      { comment_count, "Comment" },
-    })
-  end
-
   pickers
     .new({}, {
       prompt_title = "Code Review Threads",
@@ -819,10 +776,11 @@ function M.list_threads_with_telescope()
         results = thread_list,
         entry_maker = function(thread_info)
           local root_comment = thread_info.data.root_comment
+          local display = format_telescope_thread_entry(thread_info)
           return {
             value = thread_info,
-            display = make_display,
-            ordinal = string.format("%s:%d %s", root_comment.file, root_comment.line_start, root_comment.comment),
+            display = display,
+            ordinal = display,
             filename = root_comment.file,
             lnum = root_comment.line_start,
             col = 1,
@@ -869,5 +827,6 @@ end
 
 M._comment_to_qf_item = comment_to_qf_item
 M._jump_to_comment = jump_to_comment
+M._format_telescope_thread_entry = format_telescope_thread_entry
 
 return M

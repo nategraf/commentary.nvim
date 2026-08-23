@@ -1,4 +1,5 @@
 local file_storage = require("code-review.storage.file")
+local list = require("code-review.list")
 local thread = require("code-review.thread")
 local preview = require("code-review.list-preview")
 
@@ -56,6 +57,27 @@ T["file-backed replies contribute to thread count and preview"] = function()
   MiniTest.expect.match(content, "Root comment")
   MiniTest.expect.match(content, "First reply")
   MiniTest.expect.match(content, "Second reply")
+end
+
+T["Telescope renders thread rows as file, line, and text"] = function()
+  local thread_info = {
+    data = {
+      root_comment = {
+        file = "lua/code-review/list.lua",
+        line_start = 12,
+        line_end = 14,
+        comment = "Keep the picker concise\nMore detail belongs in the preview.",
+        anchor_status = "attached",
+      },
+      replies = { { comment = "Reply" } },
+    },
+    status = "open",
+  }
+
+  MiniTest.expect.equality(
+    list._format_telescope_thread_entry(thread_info),
+    "lua/code-review/list.lua:12-14: Keep the picker concise"
+  )
 end
 
 return T
