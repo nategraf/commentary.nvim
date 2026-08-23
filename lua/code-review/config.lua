@@ -81,6 +81,11 @@ local defaults = {
     -- When enabled, review files are prefixed with status (action-required_, waiting-review_, resolved_)
     status_management = false,
   },
+  -- Notifications emitted when synchronization loads external comments.
+  notifications = {
+    enabled = true,
+    max_preview_length = 80,
+  },
   -- Keymaps (set to false to disable all keymaps)
   keymaps = {
     -- Clear all comments

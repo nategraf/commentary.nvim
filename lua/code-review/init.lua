@@ -12,6 +12,7 @@ local utils = require("code-review.utils")
 function M.setup(opts)
   config.setup(opts or {})
   state.init()
+  require("code-review.notification").setup()
 
   -- Define highlight groups for different statuses
   vim.api.nvim_set_hl(0, "CodeReviewWaitingReview", { fg = "#50fa7b", default = true }) -- Green (informative)
@@ -141,6 +142,8 @@ function M.setup(opts)
 
   -- Setup autocmd to sync state and update UI (only for file backend)
   if config.get("comment.storage.backend") == "file" then
+    -- TODO: Add a debounced vim.uv.new_fs_event watcher for the storage
+    -- directory so external comments load without waiting for an editor event.
     vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "CursorHold" }, {
       group = vim.api.nvim_create_augroup("CodeReviewSync", { clear = true }),
       callback = function()

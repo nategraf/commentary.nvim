@@ -3,6 +3,113 @@ local M = {}
 -- Storage backend
 local storage = nil
 local initialized = false
+local known_comments = nil
+
+local function comment_fingerprint(comment)
+  return vim.json.encode({
+    file = comment.file,
+    line_start = comment.line_start,
+    line_end = comment.line_end,
+    author = comment.author,
+    timestamp = comment.timestamp,
+    comment = comment.comment,
+    thread_id = comment.thread_id,
+    parent_id = comment.parent_id,
+    thread_status = comment.thread_status,
+    anchor = comment.anchor,
+  })
+end
+
+local function comment_identity(comment, index)
+  if comment.id then
+    return tostring(comment.id)
+  end
+
+  return string.format(
+    "%s\0%s\0%s\0%s\0%d",
+    comment.file or "",
+    comment.author or "",
+    comment.timestamp or "",
+    comment.comment or "",
+    index
+  )
+end
+
+local function index_comments(comments)
+  local indexed = {}
+  for index, comment in ipairs(comments) do
+    indexed[comment_identity(comment, index)] = {
+      comment = vim.deepcopy(comment),
+      fingerprint = comment_fingerprint(comment),
+    }
+  end
+  return indexed
+end
+
+local function remember_comments(comments)
+  known_comments = index_comments(comments or storage.get_all())
+end
+
+local function reconcile_comments(comments)
+  local current = index_comments(comments)
+  local previous = known_comments or {}
+  local changes = { added = {}, removed = {}, updated = {} }
+
+  for id, entry in pairs(current) do
+    local old_entry = previous[id]
+    if not old_entry then
+      table.insert(changes.added, entry.comment)
+    elseif old_entry.fingerprint ~= entry.fingerprint then
+      table.insert(changes.updated, {
+        before = old_entry.comment,
+        after = entry.comment,
+      })
+    end
+  end
+
+  for id, entry in pairs(previous) do
+    if not current[id] then
+      table.insert(changes.removed, entry.comment)
+    end
+  end
+
+  local function by_location(a, b)
+    local a_comment = a.after or a
+    local b_comment = b.after or b
+    if (a_comment.file or "") ~= (b_comment.file or "") then
+      return (a_comment.file or "") < (b_comment.file or "")
+    end
+    if (a_comment.line_start or 0) ~= (b_comment.line_start or 0) then
+      return (a_comment.line_start or 0) < (b_comment.line_start or 0)
+    end
+    return (a_comment.timestamp or 0) < (b_comment.timestamp or 0)
+  end
+
+  table.sort(changes.added, by_location)
+  table.sort(changes.removed, by_location)
+  table.sort(changes.updated, by_location)
+  known_comments = current
+  return changes
+end
+
+local function emit_changes(changes, source)
+  if #changes.added == 0 and #changes.removed == 0 and #changes.updated == 0 then
+    return
+  end
+
+  vim.api.nvim_exec_autocmds("User", {
+    pattern = "CodeReviewCommentsChanged",
+    modeline = false,
+    data = vim.tbl_extend("force", { source = source }, changes),
+  })
+end
+
+local function finish_change(source)
+  local changes = reconcile_comments(storage.get_all())
+  M.refresh_ui()
+  emit_changes(changes, source)
+  return changes
+end
 
 --- Initialize storage backend
 function M.init()
@@ -20,6 +127,7 @@ function M.init()
   end
 
   storage.init()
+  remember_comments(storage.get_all())
   initialized = true
 end
 
@@ -44,23 +152,24 @@ function M.refresh_ui()
   -- Future: Update other UI elements like statusline, floating windows, etc.
 end
 
---- Sync state from storage (for file backend)
-function M.sync_from_storage()
+--- Sync state from storage and report loaded changes.
+---@param source string? Change source; defaults to "storage"
+---@return table changes
+function M.sync_from_storage(source)
   require("code-review.anchor").invalidate_cache()
   -- Explicitly reload storage if it has reload method
   if storage and storage.reload then
     storage.reload()
   end
 
-  -- Refresh UI to reflect any changes
-  M.refresh_ui()
+  return finish_change(source or "storage")
 end
 
 --- Clear all comments but keep session active
 function M.clear()
   get_storage().clear()
   require("code-review.anchor").clear()
-  M.refresh_ui()
+  finish_change("editor")
   vim.notify("All comments cleared")
 end
 
@@ -94,7 +203,7 @@ function M.add_comment(comment_data)
     end
   end
 
-  M.refresh_ui()
+  finish_change("editor")
   return id
 end
 
@@ -130,7 +239,7 @@ function M.update_comment(id, updates)
 
   if storage_backend.update then
     if storage_backend.update(id, updated_comment) then
-      M.refresh_ui()
+      finish_change("editor")
       return true
     end
     return false
@@ -139,7 +248,7 @@ function M.update_comment(id, updates)
   -- Compatibility fallback for third-party storage backends.
   if storage_backend.delete(id) then
     storage_backend.add(updated_comment)
-    M.refresh_ui()
+    finish_change("editor")
     return true
   end
   return false
@@ -151,7 +260,7 @@ end
 function M.delete_comment(id)
   local success = get_storage().delete(id)
   if success then
-    M.refresh_ui()
+    finish_change("editor")
   end
   return success
 end
@@ -171,8 +280,7 @@ function M.replace_comments(new_comments)
     storage_backend.add(comment)
   end
 
-  -- Refresh UI after replacing all comments
-  M.refresh_ui()
+  finish_change("editor")
 end
 
 --- Get session metadata
@@ -219,7 +327,7 @@ function M.add_reply(parent_id, reply_text)
   -- Add the reply
   local id = get_storage().add(reply)
 
-  M.refresh_ui()
+  finish_change("editor")
   return id
 end
 
@@ -241,7 +349,7 @@ function M.resolve_thread(thread_id)
   local success = storage_backend.update_thread_status(thread_id, "resolved", resolved_by)
 
   if success then
-    M.refresh_ui()
+    finish_change("editor")
     vim.notify("Thread resolved", vim.log.levels.INFO)
   else
     -- Check if status management is disabled
@@ -262,7 +370,7 @@ function M.reopen_thread(thread_id)
   local success = storage_backend.update_thread_status(thread_id, "open", nil)
 
   if success then
-    M.refresh_ui()
+    finish_change("editor")
     vim.notify("Thread reopened", vim.log.levels.INFO)
   else
     -- Check if status management is disabled
@@ -297,6 +405,7 @@ function M._reset()
   require("code-review.anchor").clear()
   initialized = false
   storage = nil
+  known_comments = nil
 end
 
 return M

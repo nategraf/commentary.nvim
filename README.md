@@ -154,6 +154,12 @@ require('code-review').setup({
     -- When enabled, review files are prefixed with status (action-required_, waiting-review_, resolved_)
     status_management = false,
   },
+  -- Notify through vim.notify when synchronization loads external comments.
+  -- Notification UIs such as fidget.nvim can display these automatically.
+  notifications = {
+    enabled = true,
+    max_preview_length = 80,
+  },
   -- Keymaps (set to false to disable all keymaps)
   keymaps = {
     clear = '<leader>rx',
@@ -251,6 +257,11 @@ vim.api.nvim_create_autocmd('User', {
   - `ev.data.buf` - Buffer number
 - `CodeReviewCommentsEnter` - Fired when comment list window opens
   - `ev.data.buf` - Buffer number
+- `CodeReviewCommentsChanged` - Fired whenever comments change
+  - `ev.data.source` - Change origin (`editor`, `storage`, or a caller-supplied source such as `github`)
+  - `ev.data.added` - Newly loaded comments
+  - `ev.data.removed` - Comments no longer present in storage
+  - `ev.data.updated` - Entries containing the comment state before and after an edit
 
 ### Helper Functions
 
