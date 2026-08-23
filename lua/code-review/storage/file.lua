@@ -547,6 +547,66 @@ function M.delete(id)
   local config = require("code-review.config")
   local status_management = config.get("comment.status_management")
 
+  local comments = load_comments()
+  local target = nil
+  for _, comment in ipairs(comments) do
+    if comment.id == id then
+      target = comment
+      break
+    end
+  end
+
+  -- Replies share their root comment's file. Remove the selected reply and
+  -- rewrite that file instead of looking for a file named after the reply.
+  if target and target.parent_id and target.thread_id then
+    local root_id = target.thread_id:match("^(.+)_thread$") or target.parent_id
+    local filepath = nil
+
+    if status_management then
+      local files = vim.fn.glob(dir .. "/*_" .. root_id .. ".md", false, true)
+      filepath = files[1]
+    end
+
+    if not filepath then
+      local legacy_filepath = dir .. "/" .. root_id .. ".md"
+      if vim.fn.filereadable(legacy_filepath) == 1 then
+        filepath = legacy_filepath
+      end
+    end
+
+    if not filepath then
+      return false
+    end
+
+    local remaining = {}
+    for _, comment in ipairs(comments) do
+      if comment.thread_id == target.thread_id and comment.id ~= id then
+        table.insert(remaining, comment)
+      end
+    end
+
+    if #remaining == 0 then
+      return false
+    end
+
+    local new_filepath = filepath
+    if status_management then
+      local new_status = determine_thread_status(remaining)
+      new_filepath = dir .. "/" .. make_filename(root_id, new_status)
+    end
+
+    if not utils.save_to_file(new_filepath, M.format_thread_as_markdown(remaining)) then
+      return false
+    end
+
+    if new_filepath ~= filepath then
+      vim.fn.delete(filepath)
+    end
+
+    invalidate_cache()
+    return true
+  end
+
   -- Find file with any status prefix (if status management is enabled)
   if status_management then
     local files = vim.fn.glob(dir .. "/*_" .. id .. ".md", false, true)

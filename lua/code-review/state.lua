@@ -104,8 +104,9 @@ local function emit_changes(changes, source)
   })
 end
 
-local function finish_change(source)
-  local changes = reconcile_comments(storage.get_all())
+local function finish_change(source, reported_changes)
+  local observed_changes = reconcile_comments(storage.get_all())
+  local changes = reported_changes or observed_changes
   M.refresh_ui()
   emit_changes(changes, source)
   return changes
@@ -258,9 +259,22 @@ end
 ---@param id string Comment ID
 ---@return boolean success
 function M.delete_comment(id)
-  local success = get_storage().delete(id)
+  local storage_backend = get_storage()
+  local deleted_comment = storage_backend.get(id)
+  local success = storage_backend.delete(id)
   if success then
-    finish_change("editor")
+    local reported_changes = nil
+    if deleted_comment and deleted_comment.parent_id then
+      -- Legacy thread files derive reply IDs from their position. Rewriting a
+      -- thread can therefore renumber later replies; report the logical
+      -- deletion rather than those storage-level identity changes.
+      reported_changes = {
+        added = {},
+        removed = { deleted_comment },
+        updated = {},
+      }
+    end
+    finish_change("editor", reported_changes)
   end
   return success
 end
