@@ -185,7 +185,23 @@ end
 
 --- Clear all comments
 function M.clear()
-  state.clear()
+  local comment_count = #state.get_comments()
+  if comment_count == 0 then
+    vim.notify("No comments to clear", vim.log.levels.INFO)
+    return
+  end
+
+  vim.ui.select({ "No", "Yes" }, {
+    prompt = string.format(
+      "Delete all %d review comment%s?",
+      comment_count,
+      comment_count == 1 and "" or "s"
+    ),
+  }, function(choice)
+    if choice == "Yes" then
+      state.clear()
+    end
+  end)
 end
 
 --- Add a comment at the current location
