@@ -575,14 +575,10 @@ function M.list_threads_with_fzf_lua()
   end
 
   -- Create preview buffers for all threads
-  local formatter = require("code-review.formatter")
   local preview_buffers = {}
   local temp_buffers = {}
 
   for _, thread_info in ipairs(thread_list) do
-    -- Get all comments in thread
-    local thread_comments = state.get_thread_comments(thread_info.id)
-
     -- Create a scratch buffer
     local bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_option(bufnr, "buftype", "nofile")
@@ -590,33 +586,7 @@ function M.list_threads_with_fzf_lua()
     vim.api.nvim_buf_set_option(bufnr, "swapfile", false)
     vim.api.nvim_buf_set_option(bufnr, "filetype", "markdown")
 
-    -- Format thread as markdown
-    local lines = {}
-    table.insert(lines, "# Thread Overview")
-    table.insert(lines, "")
-    table.insert(lines, string.format("**Status**: %s", thread_info.status))
-    table.insert(lines, string.format("**File**: %s", thread_info.data.root_comment.file))
-    table.insert(lines, string.format("**Line**: %d", thread_info.data.root_comment.line_start))
-    table.insert(lines, string.format("**Comments**: %d", #thread_comments))
-    table.insert(lines, "")
-    table.insert(lines, "---")
-    table.insert(lines, "")
-
-    -- Add all comments
-    for j, comment in ipairs(thread_comments) do
-      table.insert(lines, string.format("## Comment %d", j))
-      table.insert(lines, "")
-      local comment_lines = formatter.format_single(comment)
-      for _, line in ipairs(comment_lines) do
-        table.insert(lines, line)
-      end
-      if j < #thread_comments then
-        table.insert(lines, "")
-        table.insert(lines, "---")
-        table.insert(lines, "")
-      end
-    end
-
+    local lines = preview.format_thread(thread_info)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
     preview_buffers[thread_info.id] = bufnr
     table.insert(temp_buffers, bufnr)
@@ -860,6 +830,11 @@ function M.list_threads_with_telescope()
         end,
       }),
       sorter = conf.generic_sorter({}),
+      previewer = preview.telescope_thread_previewer(),
+      layout_strategy = "horizontal",
+      layout_config = {
+        preview_width = 0.5,
+      },
       attach_mappings = function(prompt_bufnr, map)
         actions.select_default:replace(function()
           actions.close(prompt_bufnr)

@@ -239,9 +239,14 @@ local function parse_comment_from_file(content, filename)
     table.insert(comments, current_comment)
   end
 
-  -- For multi-comment format, ensure root comment has correct ID
-  if #comments > 0 and comments[1] and not comments[1].parent_id then
+  -- Reconstruct the flat thread relationship represented by this one file.
+  -- Parent IDs are intentionally omitted from the Markdown format, so every
+  -- comment after the first is a reply to the root comment.
+  if #comments > 0 and comments[1] then
     comments[1].id = base_id
+    for index = 2, #comments do
+      comments[index].parent_id = base_id
+    end
   end
 
   return comments
