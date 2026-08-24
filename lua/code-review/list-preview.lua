@@ -2,6 +2,17 @@ local M = {}
 
 local formatter = require("code-review.formatter")
 
+local function enable_wrapping(previewer)
+  local winid = previewer.state and previewer.state.winid
+  if not winid or not vim.api.nvim_win_is_valid(winid) then
+    return
+  end
+
+  vim.wo[winid].wrap = true
+  vim.wo[winid].linebreak = true
+  vim.wo[winid].breakindent = true
+end
+
 --- Format a thread for picker previews.
 ---@param thread_info table Thread list entry with data and status fields
 ---@return string[] lines
@@ -46,6 +57,7 @@ function M.telescope_comment_previewer()
     define_preview = function(self, entry, status)
       local comment_data = entry.value
       local bufnr = self.state.bufnr
+      enable_wrapping(self)
 
       -- Use formatter for preview (no ANSI for Telescope)
       local lines = formatter.format_single(comment_data)
@@ -75,6 +87,7 @@ function M.telescope_thread_previewer()
     define_preview = function(self, entry, status)
       local bufnr = self.state.bufnr
       local lines = M.format_thread(entry.value)
+      enable_wrapping(self)
 
       vim.api.nvim_set_option_value("modifiable", true, { buf = bufnr })
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
@@ -83,5 +96,7 @@ function M.telescope_thread_previewer()
     end,
   })
 end
+
+M._enable_wrapping = enable_wrapping
 
 return M

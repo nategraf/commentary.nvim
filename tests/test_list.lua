@@ -101,4 +101,28 @@ T["Telescope renders thread rows as file, line, and text"] = function()
   })
 end
 
+T["Telescope previews wrap long comment lines"] = function()
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  local winid = vim.api.nvim_open_win(bufnr, false, {
+    relative = "editor",
+    row = 0,
+    col = 0,
+    width = 20,
+    height = 5,
+    style = "minimal",
+  })
+
+  vim.wo[winid].wrap = false
+  vim.wo[winid].linebreak = false
+  vim.wo[winid].breakindent = false
+  preview._enable_wrapping({ state = { winid = winid } })
+
+  MiniTest.expect.equality(vim.wo[winid].wrap, true)
+  MiniTest.expect.equality(vim.wo[winid].linebreak, true)
+  MiniTest.expect.equality(vim.wo[winid].breakindent, true)
+
+  vim.api.nvim_win_close(winid, true)
+  vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
 return T
