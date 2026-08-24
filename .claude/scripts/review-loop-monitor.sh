@@ -3,7 +3,7 @@
 # Review Loop Monitor Script
 # This script continuously monitors for action-required files and reports their status
 
-REVIEW_DIR=".code-review"
+REVIEW_DIR=".commentary"
 CHECK_INTERVAL=5
 STATUS_INTERVAL=30
 last_status_time=$(date +%s)
