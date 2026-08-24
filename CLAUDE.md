@@ -1,6 +1,6 @@
-# Development Guidelines for code-review.nvim
+# Development Guidelines for commentary.nvim
 
-This document outlines the development rules and conventions for maintaining code-review.nvim.
+This document outlines the development rules and conventions for maintaining commentary.nvim.
 
 ## Code Quality
 
