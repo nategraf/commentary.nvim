@@ -79,6 +79,8 @@ local defaults = {
     claude_code_author = "Claude Code",
     -- Enable filename-based status management (only works with file storage backend)
     -- When enabled, review files are prefixed with status (action-required_, waiting-review_, resolved_)
+    -- TODO: Decide whether to rework status management around explicit comment
+    -- origins/authors and well-defined transitions, or remove the feature.
     status_management = false,
   },
   -- Notifications emitted when synchronization loads external comments.
