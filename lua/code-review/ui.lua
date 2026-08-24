@@ -2,6 +2,21 @@ local M = {}
 
 local config = require("code-review.config")
 
+local function enable_wrapped_navigation(buf)
+  vim.keymap.set("n", "j", "gj", {
+    buffer = buf,
+    noremap = true,
+    silent = true,
+    desc = "Move down one visible line",
+  })
+  vim.keymap.set("n", "k", "gk", {
+    buffer = buf,
+    noremap = true,
+    silent = true,
+    desc = "Move up one visible line",
+  })
+end
+
 --- Show generic input window
 ---@param opts table Options: title, on_submit, initial_text
 function M.get_input(opts)
@@ -495,6 +510,7 @@ function M.show_comment_list(comments)
   -- Enable word wrap in the floating window
   vim.api.nvim_win_set_option(win, "wrap", true)
   vim.api.nvim_win_set_option(win, "linebreak", true)
+  enable_wrapped_navigation(buf)
 
   -- Setup keymaps
   vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", {
@@ -509,5 +525,7 @@ function M.show_comment_list(comments)
     desc = "Close comment window",
   })
 end
+
+M._enable_wrapped_navigation = enable_wrapped_navigation
 
 return M
