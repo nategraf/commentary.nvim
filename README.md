@@ -1,12 +1,14 @@
-# 📝 code-review.nvim
+# 📝 commentary.nvim
 
 [![Neovim](https://img.shields.io/badge/Neovim-0.10+-green.svg?style=flat-square&logo=neovim)](https://neovim.io)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![GitHub release](https://img.shields.io/github/v/release/choplin/code-review.nvim?style=flat-square)](https://github.com/choplin/code-review.nvim/releases)
+[![GitHub release](https://img.shields.io/github/v/release/nategraf/commentary.nvim?style=flat-square)](https://github.com/nategraf/commentary.nvim/releases)
 
 Dead simple code reviews in Neovim designed for AI pair programming.
 
 Add comments to any line or code block, export as structured Markdown, and paste to Claude, ChatGPT, or any AI assistant. They'll understand exactly what needs fixing.
+
+commentary.nvim is a fork of [code-review.nvim](https://github.com/choplin/code-review.nvim). It currently retains the `require('code-review')` Lua module, `CodeReview*` events, and `.code-review` storage directory for compatibility.
 
 ## 📸 Screenshots
 
@@ -49,7 +51,7 @@ Add comments to any line or code block, export as structured Markdown, and paste
 
 ```lua
 {
-  'choplin/code-review.nvim',
+  'nategraf/commentary.nvim',
   config = function()
     require('code-review').setup()
   end,
@@ -60,7 +62,7 @@ Add comments to any line or code block, export as structured Markdown, and paste
 
 ```lua
 use {
-  'choplin/code-review.nvim',
+  'nategraf/commentary.nvim',
   config = function()
     require('code-review').setup()
   end,
@@ -206,7 +208,7 @@ vim.keymap.set('n', '<leader>rx', cr.clear, { desc = "Clear all comments" })
 
 ### Buffer-Specific Keymaps
 
-You can set up keymaps for specific code-review buffers using autocmds:
+You can set up keymaps for specific commentary buffers using autocmds:
 
 ```lua
 -- Comment input buffer keymaps
@@ -268,8 +270,8 @@ vim.api.nvim_create_autocmd('User', {
 ### Helper Functions
 
 ```lua
--- Check if a buffer is a code-review buffer
-local function is_code_review_buffer(bufnr)
+-- Check if a buffer is a commentary buffer
+local function is_commentary_buffer(bufnr)
   bufnr = bufnr or 0
   local name = vim.api.nvim_buf_get_name(bufnr)
   return name:match("^codereview://") ~= nil
@@ -394,7 +396,7 @@ The `:CodeReviewList` command (`<leader>rl`) automatically selects the best avai
 
 <img src="assets/screenshot/diffview.png" alt="Code review with diffview.nvim" />
 
-Perfect for PR reviews! Use code-review.nvim alongside [diffview.nvim](https://github.com/sindrets/diffview.nvim) to:
+Perfect for PR reviews! Use commentary.nvim alongside [diffview.nvim](https://github.com/sindrets/diffview.nvim) to:
 
 - Review diffs in split view
 - Add comments while comparing changes
@@ -440,7 +442,7 @@ With visual selection, column information is included: `file.lua:L42:10-45:20: c
 
 ## 💾 Storage Backends
 
-code-review.nvim supports two storage backends:
+commentary.nvim supports two storage backends:
 
 ### Memory Storage (Default)
 
