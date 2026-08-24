@@ -125,4 +125,36 @@ T["Telescope previews wrap long comment lines"] = function()
   vim.api.nvim_buf_delete(bufnr, { force = true })
 end
 
+T["comment jump reports edit failures"] = function()
+  local original_cmd = vim.cmd
+  local original_notify = vim.notify
+  local command_seen
+  local notification
+
+  vim.cmd = function(command)
+    command_seen = command
+    error("Vim(edit):E325: ATTENTION")
+  end
+  vim.notify = function(message, level)
+    notification = { message = message, level = level }
+  end
+
+  local call_ok, jumped = pcall(list._jump_to_comment, {
+    file = "file with spaces.lua",
+    line_start = 10,
+    line_end = 10,
+    anchor_status = "attached",
+  })
+
+  vim.cmd = original_cmd
+  vim.notify = original_notify
+
+  MiniTest.expect.equality(call_ok, true)
+  MiniTest.expect.equality(jumped, false)
+  MiniTest.expect.equality(command_seen, "edit file\\ with\\ spaces.lua")
+  MiniTest.expect.equality(notification.level, vim.log.levels.ERROR)
+  MiniTest.expect.match(notification.message, "Failed to open review comment target file with spaces.lua")
+  MiniTest.expect.match(notification.message, "E325: ATTENTION")
+end
+
 return T

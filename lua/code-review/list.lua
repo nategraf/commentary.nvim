@@ -55,7 +55,17 @@ local function jump_to_comment(comment)
     return false
   end
 
-  vim.cmd("edit " .. vim.fn.fnameescape(comment.file))
+  local opened, err = pcall(function()
+    vim.cmd("edit " .. vim.fn.fnameescape(comment.file))
+  end)
+  if not opened then
+    vim.notify(
+      string.format("Failed to open review comment target %s:\n%s", comment.file, err),
+      vim.log.levels.ERROR
+    )
+    return false
+  end
+
   local line = math.max(1, math.min(comment.line_start, vim.api.nvim_buf_line_count(0)))
   vim.api.nvim_win_set_cursor(0, { line, 0 })
   return true
