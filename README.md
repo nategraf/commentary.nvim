@@ -331,6 +331,10 @@ Use `<leader>re` to edit a comment at the cursor. The existing text is loaded
 into the comment input window. If a thread contains multiple comments, select
 the root comment or reply to edit from the picker.
 
+In the comment view opened by `<leader>rs`, `j` and `k` move by wrapped screen
+lines. The configured edit, delete, reply, and resolve mappings act on the
+specific thread comment under the cursor.
+
 You can also edit the full review from the preview buffer:
 
 The preview buffer is fully editable. You can:

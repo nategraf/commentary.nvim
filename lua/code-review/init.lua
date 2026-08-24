@@ -441,6 +441,22 @@ function M.list_comments()
   require("code-review.list").list_threads()
 end
 
+--- Reply to a specific comment's thread
+---@param comment_data table Comment to reply to
+function M.reply_to_comment(comment_data)
+  ui.show_comment_input(function(reply_text)
+    if reply_text and reply_text ~= "" then
+      state.add_reply(comment_data.id, reply_text)
+      vim.notify("Reply added", vim.log.levels.INFO)
+    end
+  end, {
+    file = comment_data.file,
+    line_start = comment_data.line_start,
+    line_end = comment_data.line_end,
+    lines = comment_data.context_lines or {},
+  }, " Reply to Comment (C-CR to submit) ")
+end
+
 --- Reply to comment at cursor position
 function M.reply_to_comment_at_cursor()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -481,18 +497,7 @@ function M.reply_to_comment_at_cursor()
     local selected_thread = threads[next(threads)]
     local comment_to_reply = selected_thread.root_comment or selected_thread.comments[1]
 
-    -- Show input UI for reply with the same context as the original comment
-    ui.show_comment_input(function(reply_text)
-      if reply_text and reply_text ~= "" then
-        state.add_reply(comment_to_reply.id, reply_text)
-        vim.notify("Reply added", vim.log.levels.INFO)
-      end
-    end, {
-      file = comment_to_reply.file,
-      line_start = comment_to_reply.line_start,
-      line_end = comment_to_reply.line_end,
-      lines = comment_to_reply.context_lines or {},
-    }, " Reply to Comment (C-CR to submit) ")
+    M.reply_to_comment(comment_to_reply)
   else
     -- Create thread selection items
     local thread_items = {}
@@ -526,18 +531,7 @@ function M.reply_to_comment_at_cursor()
       -- Continue with reply process inside callback
       local comment_to_reply = selected_thread.root_comment or selected_thread.comments[1]
 
-      -- Show input UI for reply with the same context as the original comment
-      ui.show_comment_input(function(reply_text)
-        if reply_text and reply_text ~= "" then
-          state.add_reply(comment_to_reply.id, reply_text)
-          vim.notify("Reply added", vim.log.levels.INFO)
-        end
-      end, {
-        file = comment_to_reply.file,
-        line_start = comment_to_reply.line_start,
-        line_end = comment_to_reply.line_end,
-        lines = comment_to_reply.context_lines or {},
-      }, " Reply to Comment (C-CR to submit) ")
+      M.reply_to_comment(comment_to_reply)
     end)
   end
 end
@@ -616,6 +610,17 @@ function M.resolve_thread_at_cursor()
   end
 end
 
+--- Resolve the thread containing a specific comment
+---@param comment_data table Comment whose thread should be resolved
+function M.resolve_comment_thread(comment_data)
+  local thread_id = comment_data.thread_id or comment_data.id
+  if not thread_id then
+    vim.notify("No thread found", vim.log.levels.WARN)
+    return false
+  end
+  return state.resolve_thread(thread_id)
+end
+
 --- Set review status
 ---@param status string New status
 function M.set_review_status(status)
@@ -664,6 +669,12 @@ local function show_comment_editor(comment_data)
   }, " Edit Comment (C-CR to submit) ", comment_data.comment)
 end
 
+--- Edit a specific comment
+---@param comment_data table Comment to edit
+function M.edit_comment(comment_data)
+  show_comment_editor(comment_data)
+end
+
 --- Edit comment at cursor position
 function M.edit_comment_at_cursor()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -679,12 +690,37 @@ function M.edit_comment_at_cursor()
   if #line_comments > 1 then
     select_comment(line_comments, "Select comment to edit:", function(choice)
       if choice then
-        show_comment_editor(choice)
+        M.edit_comment(choice)
       end
     end)
   else
-    show_comment_editor(line_comments[1])
+    M.edit_comment(line_comments[1])
   end
+end
+
+local function delete_comment(comment_data)
+  if state.delete_comment(comment_data.id) then
+    vim.notify("Comment deleted")
+  else
+    vim.notify("Failed to delete comment", vim.log.levels.ERROR)
+  end
+end
+
+--- Delete a specific comment after confirmation
+---@param comment_data table Comment to delete
+function M.delete_comment(comment_data)
+  local first_line = comment_data.comment:match("^[^\n]*") or comment_data.comment
+  if #first_line > 50 then
+    first_line = first_line:sub(1, 47) .. "..."
+  end
+
+  vim.ui.select({ "Yes", "No" }, {
+    prompt = string.format("Delete comment: %s?", first_line),
+  }, function(choice)
+    if choice == "Yes" then
+      delete_comment(comment_data)
+    end
+  end)
 end
 
 --- Delete comment at cursor position
@@ -705,32 +741,11 @@ function M.delete_comment_at_cursor()
   if #line_comments > 1 then
     select_comment(line_comments, "Select comment to delete:", function(choice)
       if choice then
-        if state.delete_comment(choice.id) then
-          vim.notify("Comment deleted")
-        else
-          vim.notify("Failed to delete comment", vim.log.levels.ERROR)
-        end
+        delete_comment(choice)
       end
     end)
   else
-    -- Single comment, confirm deletion
-    local comment_data = line_comments[1]
-    local first_line = comment_data.comment:match("^[^\n]*") or comment_data.comment
-    if #first_line > 50 then
-      first_line = first_line:sub(1, 47) .. "..."
-    end
-
-    vim.ui.select({ "Yes", "No" }, {
-      prompt = string.format("Delete comment: %s?", first_line),
-    }, function(choice)
-      if choice == "Yes" then
-        if state.delete_comment(comment_data.id) then
-          vim.notify("Comment deleted")
-        else
-          vim.notify("Failed to delete comment", vim.log.levels.ERROR)
-        end
-      end
-    end)
+    M.delete_comment(line_comments[1])
   end
 end
 

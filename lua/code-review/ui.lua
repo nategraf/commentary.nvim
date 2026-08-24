@@ -17,6 +17,69 @@ local function enable_wrapped_navigation(buf)
   })
 end
 
+local function configured_key(action)
+  local keymaps = config.get("keymaps")
+  if not keymaps then
+    return nil
+  end
+
+  local mapping = keymaps[action]
+  if type(mapping) == "string" then
+    return mapping
+  end
+  if type(mapping) == "table" then
+    return mapping.key
+  end
+end
+
+local function setup_comment_actions(buf, win, comment_by_line)
+  local actions = {
+    delete_comment = {
+      method = "delete_comment",
+      desc = "Delete displayed review comment",
+    },
+    edit_comment = {
+      method = "edit_comment",
+      desc = "Edit displayed review comment",
+    },
+    reply_comment = {
+      method = "reply_to_comment",
+      desc = "Reply to displayed review comment",
+    },
+    resolve_thread = {
+      method = "resolve_comment_thread",
+      desc = "Resolve displayed review thread",
+    },
+  }
+
+  for action, action_config in pairs(actions) do
+    local key = configured_key(action)
+    if key then
+      local method = action_config.method
+      vim.keymap.set("n", key, function()
+        if not vim.api.nvim_win_is_valid(win) then
+          return
+        end
+
+        local row = vim.api.nvim_win_get_cursor(win)[1]
+        local comment = comment_by_line[row]
+        if not comment then
+          vim.notify("No review comment under cursor", vim.log.levels.WARN)
+          return
+        end
+
+        vim.api.nvim_win_close(win, true)
+        require("code-review")[method](comment)
+      end, {
+        buffer = buf,
+        noremap = true,
+        silent = true,
+        desc = action_config.desc,
+      })
+    end
+  end
+end
+
 --- Show generic input window
 ---@param opts table Options: title, on_submit, initial_text
 function M.get_input(opts)
@@ -414,6 +477,12 @@ end
 ---@param comments table[] List of comments to show
 function M.show_comment_list(comments)
   local lines = {}
+  local comment_by_line = {}
+
+  local function append_line(text, comment)
+    table.insert(lines, text)
+    comment_by_line[#lines] = comment
+  end
 
   -- Group comments by thread
   local threads = {}
@@ -436,32 +505,32 @@ function M.show_comment_list(comments)
   local first_thread = true
   for _, thread_comments in pairs(threads) do
     if not first_thread then
-      table.insert(lines, "")
-      table.insert(lines, "---")
-      table.insert(lines, "")
+      append_line("", thread_comments[1])
+      append_line("---", thread_comments[1])
+      append_line("", thread_comments[1])
     end
     first_thread = false
 
     -- Add thread comments in the same format as the file (without ## Comments header)
     for i, comment in ipairs(thread_comments) do
       if i > 1 then
-        table.insert(lines, "")
-        table.insert(lines, "---")
-        table.insert(lines, "")
+        append_line("", comment)
+        append_line("---", comment)
+        append_line("", comment)
       end
 
       -- Comment metadata
       local cfg = require("code-review.config")
       local date_format = cfg.get("output.date_format")
-      table.insert(
-        lines,
-        "### " .. (comment.author or vim.fn.expand("$USER")) .. " - " .. os.date(date_format, comment.timestamp)
+      append_line(
+        "### " .. (comment.author or vim.fn.expand("$USER")) .. " - " .. os.date(date_format, comment.timestamp),
+        comment
       )
-      table.insert(lines, "")
+      append_line("", comment)
 
       -- Comment content (split by lines to avoid newline issues)
       for line in comment.comment:gmatch("[^\n]+") do
-        table.insert(lines, line)
+        append_line(line, comment)
       end
     end
   end
@@ -511,6 +580,7 @@ function M.show_comment_list(comments)
   vim.api.nvim_win_set_option(win, "wrap", true)
   vim.api.nvim_win_set_option(win, "linebreak", true)
   enable_wrapped_navigation(buf)
+  setup_comment_actions(buf, win, comment_by_line)
 
   -- Setup keymaps
   vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", {
@@ -527,5 +597,6 @@ function M.show_comment_list(comments)
 end
 
 M._enable_wrapped_navigation = enable_wrapped_navigation
+M._setup_comment_actions = setup_comment_actions
 
 return M
