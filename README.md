@@ -171,6 +171,8 @@ copy = '<leader>ry',
     list_comments = '<leader>rl',
     delete_comment = '<leader>rd',
     edit_comment = '<leader>re',
+    previous_comment = '[r',
+    next_comment = ']r',
   },
 })
 ```
@@ -293,6 +295,8 @@ end
 | `:CodeReviewEditComment`     | `<leader>re`   | Edit comment at cursor position                             |
 | `:CodeReviewResolveThread`   | -              | Mark current thread as resolved                             |
 | `:CodeReviewReopenThread`    | -              | Reopen a resolved thread                                    |
+| `:CodeReviewPreviousComment` | `[r`            | Jump to the previous attached comment in the current buffer |
+| `:CodeReviewNextComment`     | `]r`            | Jump to the next attached comment in the current buffer     |
 
 ### Visual Indicators
 

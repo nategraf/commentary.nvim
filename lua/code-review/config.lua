@@ -145,6 +145,15 @@ local defaults = {
       mode = "n",
       key = "<leader>ro",
     },
+    -- Navigate attached comments in the current buffer
+    previous_comment = {
+      mode = "n",
+      key = "[r",
+    },
+    next_comment = {
+      mode = "n",
+      key = "]r",
+    },
   },
   -- Integration settings
   integrations = {

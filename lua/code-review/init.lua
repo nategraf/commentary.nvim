@@ -72,6 +72,14 @@ function M.setup(opts)
     M.resolve_thread_at_cursor()
   end, { desc = "Resolve thread at cursor position" })
 
+  vim.api.nvim_create_user_command("CodeReviewPreviousComment", function()
+    M.previous_comment()
+  end, { desc = "Jump to the previous review comment" })
+
+  vim.api.nvim_create_user_command("CodeReviewNextComment", function()
+    M.next_comment()
+  end, { desc = "Jump to the next review comment" })
+
   vim.api.nvim_create_user_command("CodeReviewSetStatus", function(args)
     if args.args == "" then
       vim.notify("Usage: :CodeReviewSetStatus <draft|open|resolved|closed>", vim.log.levels.ERROR)
@@ -114,6 +122,8 @@ function M.setup(opts)
             edit_comment = "Edit comment at cursor",
             reply_comment = "Reply to comment at cursor",
             resolve_thread = "Resolve thread at cursor",
+            previous_comment = "Previous review comment",
+            next_comment = "Next review comment",
           }
 
           local func = {
@@ -130,6 +140,8 @@ function M.setup(opts)
             edit_comment = M.edit_comment_at_cursor,
             reply_comment = M.reply_to_comment_at_cursor,
             resolve_thread = M.resolve_thread_at_cursor,
+            previous_comment = M.previous_comment,
+            next_comment = M.next_comment,
           }
 
           if func[action] then
@@ -184,6 +196,74 @@ function M.setup(opts)
     end,
     desc = "Re-resolve code review anchors in the new project",
   })
+end
+
+local function attached_comment_lines()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local filename = vim.api.nvim_buf_get_name(bufnr)
+  if filename == "" then
+    return {}
+  end
+
+  local file = utils.normalize_path(filename)
+  local anchor = require("code-review.anchor")
+  local seen = {}
+  local lines = {}
+  for _, review_comment in ipairs(state.get_comments()) do
+    if anchor.is_attached(review_comment) and review_comment.file == file then
+      local line = review_comment.line_start
+      if not seen[line] then
+        seen[line] = true
+        table.insert(lines, line)
+      end
+    end
+  end
+  table.sort(lines)
+  return lines
+end
+
+local function jump_comment(direction)
+  local lines = attached_comment_lines()
+  if #lines == 0 then
+    vim.notify("No attached review comments in this buffer", vim.log.levels.INFO)
+    return false
+  end
+
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local index = nil
+  if direction > 0 then
+    for candidate, line in ipairs(lines) do
+      if line > row then
+        index = candidate
+        break
+      end
+    end
+    index = index or 1
+  else
+    for candidate = #lines, 1, -1 do
+      if lines[candidate] < row then
+        index = candidate
+        break
+      end
+    end
+    index = index or #lines
+  end
+
+  local count = vim.v.count1
+  index = ((index - 1 + direction * (count - 1)) % #lines) + 1
+  vim.api.nvim_win_set_cursor(0, { lines[index], 0 })
+  vim.cmd("normal! zv")
+  return true
+end
+
+--- Jump to the previous attached review comment in the current buffer.
+function M.previous_comment()
+  return jump_comment(-1)
+end
+
+--- Jump to the next attached review comment in the current buffer.
+function M.next_comment()
+  return jump_comment(1)
 end
 
 --- Clear all comments
