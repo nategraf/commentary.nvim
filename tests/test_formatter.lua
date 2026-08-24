@@ -5,7 +5,7 @@ local T = MiniTest.new_set()
 T.hooks = {
   pre_once = function()
     -- Load plugin with memory backend to avoid file system
-    require("code-review").setup({
+    require("commentary").setup({
       comment = {
         storage = { backend = "memory" },
       },
@@ -14,13 +14,13 @@ T.hooks = {
 
   pre_case = function()
     -- Clear state before each test
-    require("code-review.state").clear()
+    require("commentary.state").clear()
   end,
 }
 
 -- Basic formatting tests
 T["format single comment"] = function()
-  local formatter = require("code-review.formatter")
+  local formatter = require("commentary.formatter")
   local comments = {
     {
       id = "test-1",
@@ -49,7 +49,7 @@ T["format single comment"] = function()
 end
 
 T["format empty list"] = function()
-  local formatter = require("code-review.formatter")
+  local formatter = require("commentary.formatter")
   local result = formatter.format({})
 
   -- Should still have header
@@ -58,7 +58,7 @@ T["format empty list"] = function()
 end
 
 T["parse markdown"] = function()
-  local formatter = require("code-review.formatter")
+  local formatter = require("commentary.formatter")
   local content = [[# Code Review
 
 **Date**: Sat Jan 1 12:00:00 2024
@@ -89,8 +89,8 @@ This needs refactoring]]
 end
 
 T["format minimal single line"] = function()
-  local formatter = require("code-review.formatter")
-  local config = require("code-review.config")
+  local formatter = require("commentary.formatter")
+  local config = require("commentary.config")
 
   -- Setup with minimal format
   config.setup({ output = { format = "minimal" } })
@@ -114,8 +114,8 @@ T["format minimal single line"] = function()
 end
 
 T["format minimal multi-line range"] = function()
-  local formatter = require("code-review.formatter")
-  local config = require("code-review.config")
+  local formatter = require("commentary.formatter")
+  local config = require("commentary.config")
 
   -- Setup with minimal format
   config.setup({ output = { format = "minimal" } })
@@ -139,8 +139,8 @@ T["format minimal multi-line range"] = function()
 end
 
 T["format minimal joins multi-line comments"] = function()
-  local formatter = require("code-review.formatter")
-  local config = require("code-review.config")
+  local formatter = require("commentary.formatter")
+  local config = require("commentary.config")
 
   -- Setup with minimal format
   config.setup({ output = { format = "minimal" } })
@@ -164,7 +164,7 @@ T["format minimal joins multi-line comments"] = function()
 end
 
 T["save to file"] = function()
-  local formatter = require("code-review.formatter")
+  local formatter = require("commentary.formatter")
   local test_dir = vim.fn.tempname()
   vim.fn.mkdir(test_dir, "p")
 

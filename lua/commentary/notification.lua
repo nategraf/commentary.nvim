@@ -9,7 +9,7 @@ end
 
 local function comment_preview(comment)
   local text = (comment.comment or ""):match("^[^\n]*") or ""
-  local limit = require("code-review.config").get("notifications.max_preview_length") or 80
+  local limit = require("commentary.config").get("notifications.max_preview_length") or 80
   if vim.fn.strchars(text) > limit then
     text = vim.fn.strcharpart(text, 0, math.max(0, limit - 1)) .. "…"
   end
@@ -17,7 +17,7 @@ local function comment_preview(comment)
 end
 
 function M.notify_added(comments)
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   if not config.get("notifications.enabled") or #comments == 0 then
     return
   end
@@ -39,10 +39,10 @@ function M.notify_added(comments)
 end
 
 function M.setup()
-  local group = vim.api.nvim_create_augroup("CodeReviewNotifications", { clear = true })
+  local group = vim.api.nvim_create_augroup("CommentaryNotifications", { clear = true })
   vim.api.nvim_create_autocmd("User", {
     group = group,
-    pattern = "CodeReviewCommentsChanged",
+    pattern = "CommentaryCommentsChanged",
     callback = function(args)
       local changes = args.data or {}
       if changes.source ~= "editor" then

@@ -1,5 +1,5 @@
-local config = require("code-review.config")
-local state = require("code-review.state")
+local config = require("commentary.config")
+local state = require("commentary.state")
 
 local test_dir
 
@@ -18,21 +18,21 @@ local T = MiniTest.new_set({
         },
       })
       state._reset()
-      package.loaded["code-review.storage.file"] = nil
+      package.loaded["commentary.storage.file"] = nil
     end,
     post_case = function()
       state._reset()
       config.setup({ comment = { storage = { backend = "memory" } } })
-      require("code-review.storage.memory")._reset()
+      require("commentary.storage.memory")._reset()
       state.init()
-      pcall(vim.api.nvim_del_augroup_by_name, "CodeReviewDeleteReplyTests")
+      pcall(vim.api.nvim_del_augroup_by_name, "CommentaryDeleteReplyTests")
       vim.fn.delete(test_dir, "rf")
     end,
   },
 })
 
 T["file storage deletes replies by rewriting their thread"] = function()
-  local storage = require("code-review.storage.file")
+  local storage = require("commentary.storage.file")
   storage.init()
 
   local root = {
@@ -64,7 +64,7 @@ T["file storage deletes replies by rewriting their thread"] = function()
   }
 
   local markdown = storage.format_thread_as_markdown({ root, replies[1], replies[2] })
-  require("code-review.utils").save_to_file(test_dir .. "/root.md", markdown)
+  require("commentary.utils").save_to_file(test_dir .. "/root.md", markdown)
   storage.reload()
 
   local comments = storage.get_all()
@@ -72,10 +72,10 @@ T["file storage deletes replies by rewriting their thread"] = function()
 
   state.init()
   local events = {}
-  local group = vim.api.nvim_create_augroup("CodeReviewDeleteReplyTests", { clear = true })
+  local group = vim.api.nvim_create_augroup("CommentaryDeleteReplyTests", { clear = true })
   vim.api.nvim_create_autocmd("User", {
     group = group,
-    pattern = "CodeReviewCommentsChanged",
+    pattern = "CommentaryCommentsChanged",
     callback = function(args)
       table.insert(events, vim.deepcopy(args.data))
     end,

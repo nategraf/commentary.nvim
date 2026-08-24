@@ -30,7 +30,7 @@ local defaults = {
     signs = {
       enabled = true,
       text = "┃",
-      texthl = "CodeReviewSign",
+      texthl = "CommentarySign",
       linehl = "",
       numhl = "",
     },
@@ -38,7 +38,7 @@ local defaults = {
     virtual_text = {
       enabled = true,
       prefix = " 󰆉 ",
-      hl = "CodeReviewVirtualText",
+      hl = "CommentaryVirtualText",
     },
   },
   -- Output settings
@@ -68,7 +68,7 @@ local defaults = {
         -- Directory for file storage
         -- Relative paths: resolved from project root (git root or cwd)
         -- Absolute paths: used as-is
-        dir = ".code-review",
+        dir = ".commentary",
       },
     },
     -- Automatically copy each new comment to clipboard when added
@@ -184,8 +184,8 @@ function M.setup(opts)
   end
 
   -- Create highlight groups
-  vim.api.nvim_set_hl(0, "CodeReviewSign", { link = "Comment", default = true })
-  vim.api.nvim_set_hl(0, "CodeReviewVirtualText", { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, "CommentarySign", { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, "CommentaryVirtualText", { link = "Comment", default = true })
 end
 
 --- Get configuration value

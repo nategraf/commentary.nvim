@@ -6,7 +6,7 @@ local helpers = require("tests.helpers")
 T.hooks = {
   pre_once = function()
     -- Load plugin with memory backend to avoid file system
-    require("code-review").setup({
+    require("commentary").setup({
       comment = {
         storage = { backend = "memory" },
       },
@@ -15,8 +15,8 @@ T.hooks = {
 
   pre_case = function()
     -- Reset and reinitialize for clean state
-    local state = require("code-review.state")
-    local memory = require("code-review.storage.memory")
+    local state = require("commentary.state")
+    local memory = require("commentary.storage.memory")
 
     -- Use _reset for complete cleanup
     state._reset()
@@ -32,7 +32,7 @@ T.hooks = {
 
 -- Test basic formatter integration
 T["formatter integration"] = function()
-  local formatter = require("code-review.formatter")
+  local formatter = require("commentary.formatter")
 
   -- Test data
   local test_comments = {
@@ -75,7 +75,7 @@ end
 
 -- Test comment formatting
 T["comment formatting"] = function()
-  local formatter = require("code-review.formatter")
+  local formatter = require("commentary.formatter")
 
   local test_data = {
     file = "test.lua",
@@ -102,7 +102,7 @@ end
 
 -- Test utils functions
 T["utils integration"] = function()
-  local utils = require("code-review.utils")
+  local utils = require("commentary.utils")
 
   -- Test path normalization
   local paths = {
@@ -119,7 +119,13 @@ T["utils integration"] = function()
 
   -- Test filename generation
   local filename = utils.generate_filename("markdown")
-  helpers.expect.match(filename, "code%-review%-.*%.md")
+  helpers.expect.match(filename, "commentary%-.*%.md")
+end
+
+T["default file storage uses commentary directory"] = function()
+  local config = require("commentary.config")
+  config.setup({})
+  MiniTest.expect.equality(config.get("comment.storage.file.dir"), ".commentary")
 end
 
 return T

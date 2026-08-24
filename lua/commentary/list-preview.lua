@@ -1,6 +1,6 @@
 local M = {}
 
-local formatter = require("code-review.formatter")
+local formatter = require("commentary.formatter")
 
 local function enable_wrapping(previewer)
   local winid = previewer.state and previewer.state.winid

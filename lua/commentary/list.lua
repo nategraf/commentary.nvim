@@ -1,8 +1,8 @@
 local M = {}
 
-local anchor = require("code-review.anchor")
-local state = require("code-review.state")
-local preview = require("code-review.list-preview")
+local anchor = require("commentary.anchor")
+local state = require("commentary.state")
+local preview = require("commentary.list-preview")
 
 local function anchor_label(comment)
   local status = comment.anchor_status
@@ -103,7 +103,7 @@ function M.list_with_quickfix()
   end
 
   -- Build thread tree
-  local thread = require("code-review.thread")
+  local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
 
   -- Get thread statuses from storage
@@ -295,7 +295,7 @@ function M.list_with_fzf_lua()
   end
 
   -- Create preview buffers for all comments
-  local formatter = require("code-review.formatter")
+  local formatter = require("commentary.formatter")
   local preview_buffers = {}
   M._temp_buffers = {}
 
@@ -475,7 +475,7 @@ function M.list_threads_with_quickfix()
   end
 
   -- Build thread tree
-  local thread = require("code-review.thread")
+  local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
 
   -- Get thread statuses
@@ -553,7 +553,7 @@ function M.list_threads_with_fzf_lua()
   end
 
   -- Build thread tree
-  local thread = require("code-review.thread")
+  local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
   local all_threads = state.get_all_threads()
 
@@ -780,7 +780,7 @@ function M.list_threads_with_telescope()
   end
 
   -- Build thread tree
-  local thread = require("code-review.thread")
+  local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
   local all_threads = state.get_all_threads()
 

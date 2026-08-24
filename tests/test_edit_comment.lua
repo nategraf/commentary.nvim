@@ -1,9 +1,9 @@
-local state = require("code-review.state")
-local memory = require("code-review.storage.memory")
-local ui = require("code-review.ui")
-local utils = require("code-review.utils")
+local state = require("commentary.state")
+local memory = require("commentary.storage.memory")
+local ui = require("commentary.ui")
+local utils = require("commentary.utils")
 
-require("code-review").setup({
+require("commentary").setup({
   comment = {
     storage = { backend = "memory" },
   },
@@ -49,8 +49,8 @@ local function add_root(text)
 end
 
 T["default keymap and command are registered"] = function()
-  MiniTest.expect.equality(require("code-review.config").get("keymaps.edit_comment").key, "<leader>re")
-  MiniTest.expect.equality(vim.fn.exists(":CodeReviewEditComment"), 2)
+  MiniTest.expect.equality(require("commentary.config").get("keymaps.edit_comment").key, "<leader>re")
+  MiniTest.expect.equality(vim.fn.exists(":CommentaryEditComment"), 2)
 end
 
 T["edits a single comment without opening a picker"] = function()
@@ -66,7 +66,7 @@ T["edits a single comment without opening a picker"] = function()
     callback("Updated text")
   end
 
-  require("code-review").edit_comment_at_cursor()
+  require("commentary").edit_comment_at_cursor()
   MiniTest.expect.equality(state.get_comment(root_id).comment, "Updated text")
 end
 
@@ -87,7 +87,7 @@ T["selects which comment in a thread to edit"] = function()
     callback("Edited reply")
   end
 
-  require("code-review").edit_comment_at_cursor()
+  require("commentary").edit_comment_at_cursor()
 
   MiniTest.expect.equality(picker_opened, true)
   MiniTest.expect.equality(state.get_comment(root_id).comment, "Root comment")

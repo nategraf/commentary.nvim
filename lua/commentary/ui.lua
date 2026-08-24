@@ -1,6 +1,6 @@
 local M = {}
 
-local config = require("code-review.config")
+local config = require("commentary.config")
 
 local function enable_wrapped_navigation(buf)
   vim.keymap.set("n", "j", "gj", {
@@ -69,7 +69,7 @@ local function setup_comment_actions(buf, win, comment_by_line)
         end
 
         vim.api.nvim_win_close(win, true)
-        require("code-review")[method](comment)
+        require("commentary")[method](comment)
       end, {
         buffer = buf,
         noremap = true,
@@ -199,7 +199,7 @@ function M.show_comment_input(callback, context, title, initial_text)
   vim.api.nvim_buf_set_option(buf, "linebreak", true)
   vim.api.nvim_buf_set_option(buf, "breakindent", true)
   -- Set unique buffer name for identification
-  vim.api.nvim_buf_set_name(buf, string.format("codereview://input/%d", buf))
+  vim.api.nvim_buf_set_name(buf, string.format("commentary://input/%d", buf))
 
   if initial_text ~= nil then
     local initial_lines = vim.split(initial_text, "\n", { plain = true })
@@ -225,7 +225,7 @@ function M.show_comment_input(callback, context, title, initial_text)
     target_line = context.line_end
   elseif mode:match("[vV]") then
     -- In visual mode, get the end of selection
-    local _, _, end_line, _ = require("code-review.utils").get_visual_range()
+    local _, _, end_line, _ = require("commentary.utils").get_visual_range()
     target_line = end_line
   end
 
@@ -366,12 +366,12 @@ function M.show_comment_input(callback, context, title, initial_text)
   adjust_window_height()
 
   -- Store callback functions for external access
-  vim.b[buf]._code_review_submit = close_with_text
-  vim.b[buf]._code_review_cancel = close_cancelled
+  vim.b[buf]._commentary_submit = close_with_text
+  vim.b[buf]._commentary_cancel = close_cancelled
 
   -- Trigger User event after everything is set up
   vim.api.nvim_exec_autocmds("User", {
-    pattern = "CodeReviewInputEnter",
+    pattern = "CommentaryInputEnter",
     data = { buf = buf, win = win },
   })
 
@@ -425,10 +425,10 @@ function M.show_preview(content, format)
   vim.api.nvim_buf_set_option(buf, "buftype", "acwrite")
   vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
   -- Set unique buffer name for identification
-  vim.api.nvim_buf_set_name(buf, string.format("codereview://preview/%d", buf))
+  vim.api.nvim_buf_set_name(buf, string.format("commentary://preview/%d", buf))
   -- Trigger User event
   vim.api.nvim_exec_autocmds("User", {
-    pattern = "CodeReviewPreviewEnter",
+    pattern = "CommentaryPreviewEnter",
     data = { buf = buf },
   })
   -- Mark as not modified after setting content
@@ -458,7 +458,7 @@ function M.handle_preview_save(bufnr)
   local content = table.concat(lines, "\n")
 
   -- Parse content back to comments
-  local formatter = require("code-review.formatter")
+  local formatter = require("commentary.formatter")
   local success, comments = pcall(formatter.parse, content)
 
   if not success then
@@ -467,7 +467,7 @@ function M.handle_preview_save(bufnr)
   end
 
   -- Update state
-  local state = require("code-review.state")
+  local state = require("commentary.state")
   state.replace_comments(comments)
 
   vim.notify("Reviews updated from preview")
@@ -520,7 +520,7 @@ function M.show_comment_list(comments)
       end
 
       -- Comment metadata
-      local cfg = require("code-review.config")
+      local cfg = require("commentary.config")
       local date_format = cfg.get("output.date_format")
       append_line(
         "### " .. (comment.author or vim.fn.expand("$USER")) .. " - " .. os.date(date_format, comment.timestamp),
@@ -546,10 +546,10 @@ function M.show_comment_list(comments)
   vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
   vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
   -- Set unique buffer name for identification
-  vim.api.nvim_buf_set_name(buf, string.format("codereview://comments/%d", buf))
+  vim.api.nvim_buf_set_name(buf, string.format("commentary://comments/%d", buf))
   -- Trigger User event
   vim.api.nvim_exec_autocmds("User", {
-    pattern = "CodeReviewCommentsEnter",
+    pattern = "CommentaryCommentsEnter",
     data = { buf = buf },
   })
 

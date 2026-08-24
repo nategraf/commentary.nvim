@@ -1,6 +1,6 @@
 local M = {}
 
-local ns = vim.api.nvim_create_namespace("CodeReviewAnchors")
+local ns = vim.api.nvim_create_namespace("CommentaryAnchors")
 local live = {}
 local path_cache = {}
 local diff_cache = {}

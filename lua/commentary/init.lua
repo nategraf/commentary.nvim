@@ -1,30 +1,30 @@
 local M = {}
 
-local config = require("code-review.config")
-local state = require("code-review.state")
-local comment = require("code-review.comment")
-local ui = require("code-review.ui")
-local formatter = require("code-review.formatter")
-local utils = require("code-review.utils")
+local config = require("commentary.config")
+local state = require("commentary.state")
+local comment = require("commentary.comment")
+local ui = require("commentary.ui")
+local formatter = require("commentary.formatter")
+local utils = require("commentary.utils")
 
 --- Setup function to initialize the plugin
 ---@param opts table? User configuration
 function M.setup(opts)
   config.setup(opts or {})
   state.init()
-  require("code-review.notification").setup()
+  require("commentary.notification").setup()
 
   -- Define highlight groups for different statuses
-  vim.api.nvim_set_hl(0, "CodeReviewWaitingReview", { fg = "#50fa7b", default = true }) -- Green (informative)
-  vim.api.nvim_set_hl(0, "CodeReviewActionRequired", { fg = "#6c7086", default = true }) -- Light gray (pending)
-  vim.api.nvim_set_hl(0, "CodeReviewResolved", { fg = "#44475a", default = true }) -- Dark gray (resolved)
+  vim.api.nvim_set_hl(0, "CommentaryWaitingReview", { fg = "#50fa7b", default = true }) -- Green (informative)
+  vim.api.nvim_set_hl(0, "CommentaryActionRequired", { fg = "#6c7086", default = true }) -- Light gray (pending)
+  vim.api.nvim_set_hl(0, "CommentaryResolved", { fg = "#44475a", default = true }) -- Dark gray (resolved)
 
   -- Create commands
-  vim.api.nvim_create_user_command("CodeReviewClear", function()
+  vim.api.nvim_create_user_command("CommentaryClear", function()
     M.clear()
   end, { desc = "Clear all review comments" })
 
-  vim.api.nvim_create_user_command("CodeReviewComment", function(args)
+  vim.api.nvim_create_user_command("CommentaryComment", function(args)
     local context_lines = tonumber(args.args)
     M.add_comment(context_lines)
   end, {
@@ -32,11 +32,11 @@ function M.setup(opts)
     nargs = "?",
   })
 
-  vim.api.nvim_create_user_command("CodeReviewPreview", function()
+  vim.api.nvim_create_user_command("CommentaryPreview", function()
     M.preview()
   end, { desc = "Preview the code review" })
 
-  vim.api.nvim_create_user_command("CodeReviewSave", function(args)
+  vim.api.nvim_create_user_command("CommentarySave", function(args)
     M.save(args.args ~= "" and args.args or nil)
   end, {
     desc = "Save review to file",
@@ -44,45 +44,45 @@ function M.setup(opts)
     complete = "file",
   })
 
-  vim.api.nvim_create_user_command("CodeReviewCopy", function()
+  vim.api.nvim_create_user_command("CommentaryCopy", function()
     M.copy()
   end, { desc = "Copy review to clipboard" })
 
-  vim.api.nvim_create_user_command("CodeReviewShowComment", function()
+  vim.api.nvim_create_user_command("CommentaryShowComment", function()
     M.show_comment_at_cursor()
   end, { desc = "Show comment at cursor position" })
 
-  vim.api.nvim_create_user_command("CodeReviewList", function()
+  vim.api.nvim_create_user_command("CommentaryList", function()
     M.list_comments()
   end, { desc = "List all comments" })
 
-  vim.api.nvim_create_user_command("CodeReviewDeleteComment", function()
+  vim.api.nvim_create_user_command("CommentaryDeleteComment", function()
     M.delete_comment_at_cursor()
   end, { desc = "Delete comment at cursor position" })
 
-  vim.api.nvim_create_user_command("CodeReviewEditComment", function()
+  vim.api.nvim_create_user_command("CommentaryEditComment", function()
     M.edit_comment_at_cursor()
   end, { desc = "Edit comment at cursor position" })
 
-  vim.api.nvim_create_user_command("CodeReviewReply", function()
+  vim.api.nvim_create_user_command("CommentaryReply", function()
     M.reply_to_comment_at_cursor()
   end, { desc = "Reply to comment at cursor position" })
 
-  vim.api.nvim_create_user_command("CodeReviewResolve", function()
+  vim.api.nvim_create_user_command("CommentaryResolve", function()
     M.resolve_thread_at_cursor()
   end, { desc = "Resolve thread at cursor position" })
 
-  vim.api.nvim_create_user_command("CodeReviewPreviousComment", function()
+  vim.api.nvim_create_user_command("CommentaryPreviousComment", function()
     M.previous_comment()
   end, { desc = "Jump to the previous review comment" })
 
-  vim.api.nvim_create_user_command("CodeReviewNextComment", function()
+  vim.api.nvim_create_user_command("CommentaryNextComment", function()
     M.next_comment()
   end, { desc = "Jump to the next review comment" })
 
-  vim.api.nvim_create_user_command("CodeReviewSetStatus", function(args)
+  vim.api.nvim_create_user_command("CommentarySetStatus", function(args)
     if args.args == "" then
-      vim.notify("Usage: :CodeReviewSetStatus <draft|open|resolved|closed>", vim.log.levels.ERROR)
+      vim.notify("Usage: :CommentarySetStatus <draft|open|resolved|closed>", vim.log.levels.ERROR)
       return
     end
     M.set_review_status(args.args)
@@ -157,17 +157,17 @@ function M.setup(opts)
     -- TODO: Add a debounced vim.uv.new_fs_event watcher for the storage
     -- directory so external comments load without waiting for an editor event.
     vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "CursorHold" }, {
-      group = vim.api.nvim_create_augroup("CodeReviewSync", { clear = true }),
+      group = vim.api.nvim_create_augroup("CommentarySync", { clear = true }),
       callback = function()
         -- Sync from storage and update UI
-        require("code-review.state").sync_from_storage()
+        require("commentary.state").sync_from_storage()
       end,
       desc = "Sync code review state and update UI",
     })
   end
 
-  local anchor = require("code-review.anchor")
-  local anchor_group = vim.api.nvim_create_augroup("CodeReviewAnchors", { clear = true })
+  local anchor = require("commentary.anchor")
+  local anchor_group = vim.api.nvim_create_augroup("CommentaryAnchors", { clear = true })
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufFilePost", "FileChangedShellPost" }, {
     group = anchor_group,
     callback = function(args)
@@ -206,7 +206,7 @@ local function attached_comment_lines()
   end
 
   local file = utils.normalize_path(filename)
-  local anchor = require("code-review.anchor")
+  local anchor = require("commentary.anchor")
   local seen = {}
   local lines = {}
   for _, review_comment in ipairs(state.get_comments()) do
@@ -314,7 +314,7 @@ function M.save(path)
     return
   end
 
-  local review_utils = require("code-review.utils")
+  local review_utils = require("commentary.utils")
 
   -- Generate default path if not provided
   if not path then
@@ -438,7 +438,7 @@ end
 
 --- List all comments
 function M.list_comments()
-  require("code-review.list").list_threads()
+  require("commentary.list").list_threads()
 end
 
 --- Reply to a specific comment's thread
@@ -624,7 +624,7 @@ end
 --- Set review status
 ---@param status string New status
 function M.set_review_status(status)
-  local review = require("code-review.review")
+  local review = require("commentary.review")
   review.update_status(status)
 end
 
@@ -758,14 +758,14 @@ function M.get_input_buffer_functions(bufnr)
   return {
     submit = function()
       -- Trigger submit action for this buffer
-      if vim.b[bufnr]._code_review_submit then
-        vim.b[bufnr]._code_review_submit()
+      if vim.b[bufnr]._commentary_submit then
+        vim.b[bufnr]._commentary_submit()
       end
     end,
     cancel = function()
       -- Trigger cancel action for this buffer
-      if vim.b[bufnr]._code_review_cancel then
-        vim.b[bufnr]._code_review_cancel()
+      if vim.b[bufnr]._commentary_cancel then
+        vim.b[bufnr]._commentary_cancel()
       end
     end,
   }

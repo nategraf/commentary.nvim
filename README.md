@@ -8,7 +8,7 @@ Dead simple code reviews in Neovim designed for AI pair programming.
 
 Add comments to any line or code block, export as structured Markdown, and paste to Claude, ChatGPT, or any AI assistant. They'll understand exactly what needs fixing.
 
-commentary.nvim is a fork of [code-review.nvim](https://github.com/choplin/code-review.nvim). It currently retains the `require('code-review')` Lua module, `CodeReview*` events, and `.code-review` storage directory for compatibility.
+commentary.nvim is a fork of [code-review.nvim](https://github.com/choplin/code-review.nvim).
 
 ## 📸 Screenshots
 
@@ -53,7 +53,7 @@ commentary.nvim is a fork of [code-review.nvim](https://github.com/choplin/code-
 {
   'nategraf/commentary.nvim',
   config = function()
-    require('code-review').setup()
+    require('commentary').setup()
   end,
 }
 ```
@@ -64,7 +64,7 @@ commentary.nvim is a fork of [code-review.nvim](https://github.com/choplin/code-
 use {
   'nategraf/commentary.nvim',
   config = function()
-    require('code-review').setup()
+    require('commentary').setup()
   end,
 }
 ```
@@ -90,7 +90,7 @@ That's it! Your AI will understand all your feedback perfectly.
 <summary>Click to see default configuration</summary>
 
 ```lua
-require('code-review').setup({
+require('commentary').setup({
   -- UI settings
   ui = {
     -- Comment input window
@@ -119,13 +119,13 @@ require('code-review').setup({
     signs = {
       enabled = true,
       text = '┃',
-      texthl = 'CodeReviewSign',
+      texthl = 'CommentarySign',
     },
     -- Virtual text indicators
     virtual_text = {
       enabled = true,
       prefix = ' 󰆉 ',
-      hl = 'CodeReviewVirtualText',
+      hl = 'CommentaryVirtualText',
     },
   },
   -- Output settings
@@ -144,7 +144,7 @@ require('code-review').setup({
         -- Directory for file storage
         -- Relative paths: resolved from project root (git root or cwd)
         -- Absolute paths: used as-is
-        dir = '.code-review',
+        dir = '.commentary',
       },
     },
     auto_copy_on_add = false, -- Automatically copy each new comment to clipboard when added
@@ -191,12 +191,12 @@ copy = '<leader>ry',
 If you prefer to set up keymaps manually instead of using the `keymaps` config:
 
 ```lua
-require('code-review').setup({
+require('commentary').setup({
   keymaps = false,  -- Disable automatic keymaps
 })
 
 -- Set up your own keymaps
-local cr = require('code-review')
+local cr = require('commentary')
 vim.keymap.set({'n', 'v'}, '<leader>rc', cr.add_comment, { desc = "Add review comment" })
 vim.keymap.set('n', '<leader>rp', cr.preview, { desc = "Preview review" })
 vim.keymap.set('n', '<leader>rw', cr.save, { desc = "Save review to file" })
@@ -213,10 +213,10 @@ You can set up keymaps for specific commentary buffers using autocmds:
 ```lua
 -- Comment input buffer keymaps
 vim.api.nvim_create_autocmd('User', {
-  pattern = 'CodeReviewInputEnter',
+  pattern = 'CommentaryInputEnter',
   callback = function(ev)
     local buf = ev.data.buf
-    local cr = require('code-review')
+    local cr = require('commentary')
     local funcs = cr.get_input_buffer_functions(buf)
 
     -- Submit with C-CR in both insert and normal mode
@@ -229,21 +229,21 @@ vim.api.nvim_create_autocmd('User', {
 
 -- Preview buffer keymaps
 vim.api.nvim_create_autocmd('User', {
-  pattern = 'CodeReviewPreviewEnter',
+  pattern = 'CommentaryPreviewEnter',
   callback = function(ev)
     local buf = ev.data.buf
     -- Custom keymaps for preview buffer
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = buf })
     vim.keymap.set('n', '<C-s>', function()
       vim.cmd('write')  -- Save edits
-      require('code-review').save()  -- Save to file
+      require('commentary').save()  -- Save to file
     end, { buffer = buf })
   end
 })
 
 -- Comment view buffer keymaps
 vim.api.nvim_create_autocmd('User', {
-  pattern = 'CodeReviewCommentsEnter',
+  pattern = 'CommentaryCommentsEnter',
   callback = function(ev)
     local buf = ev.data.buf
     vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = buf })
@@ -254,14 +254,14 @@ vim.api.nvim_create_autocmd('User', {
 
 ### Available User Events
 
-- `CodeReviewInputEnter` - Fired when comment input window opens
+- `CommentaryInputEnter` - Fired when comment input window opens
   - `ev.data.buf` - Buffer number
   - `ev.data.win` - Window number
-- `CodeReviewPreviewEnter` - Fired when preview window opens
+- `CommentaryPreviewEnter` - Fired when preview window opens
   - `ev.data.buf` - Buffer number
-- `CodeReviewCommentsEnter` - Fired when comment list window opens
+- `CommentaryCommentsEnter` - Fired when comment list window opens
   - `ev.data.buf` - Buffer number
-- `CodeReviewCommentsChanged` - Fired whenever comments change
+- `CommentaryCommentsChanged` - Fired whenever comments change
   - `ev.data.source` - Change origin (`editor`, `storage`, or a caller-supplied source such as `github`)
   - `ev.data.added` - Newly loaded comments
   - `ev.data.removed` - Comments no longer present in storage
@@ -274,7 +274,7 @@ vim.api.nvim_create_autocmd('User', {
 local function is_commentary_buffer(bufnr)
   bufnr = bufnr or 0
   local name = vim.api.nvim_buf_get_name(bufnr)
-  return name:match("^codereview://") ~= nil
+  return name:match("^commentary://") ~= nil
 end
 ```
 
@@ -286,19 +286,20 @@ end
 
 | Command                      | Default Keymap | Description                                                 |
 | ---------------------------- | -------------- | ----------------------------------------------------------- |
-| `:CodeReviewComment [lines]` | `<leader>rc`   | Add comment at cursor/selection with optional context lines |
-| `:CodeReviewShowComment`     | `<leader>rs`   | Show comments at cursor position                            |
-| `:CodeReviewList`            | `<leader>rl`   | List all comments (Telescope/fzf-lua/quickfix)              |
-| `:CodeReviewPreview`         | `<leader>rp`   | Open preview window with editable content                   |
-| `:CodeReviewSave [path]`     | `<leader>rw`   | Save review to file                                         |
-| `:CodeReviewCopy`            | `<leader>ry`   | Copy review to clipboard                                    |
-| `:CodeReviewClear`           | `<leader>rx`   | Clear all review comments                                   |
-| `:CodeReviewDeleteComment`   | `<leader>rd`   | Delete comment at cursor position                           |
-| `:CodeReviewEditComment`     | `<leader>re`   | Edit comment at cursor position                             |
-| `:CodeReviewResolveThread`   | -              | Mark current thread as resolved                             |
-| `:CodeReviewReopenThread`    | -              | Reopen a resolved thread                                    |
-| `:CodeReviewPreviousComment` | `[r`            | Jump to the previous attached comment in the current buffer |
-| `:CodeReviewNextComment`     | `]r`            | Jump to the next attached comment in the current buffer     |
+| `:CommentaryComment [lines]` | `<leader>rc`   | Add comment at cursor/selection with optional context lines |
+| `:CommentaryShowComment`     | `<leader>rs`   | Show comments at cursor position                            |
+| `:CommentaryList`            | `<leader>rl`   | List all comments (Telescope/fzf-lua/quickfix)              |
+| `:CommentaryPreview`         | `<leader>rp`   | Open preview window with editable content                   |
+| `:CommentarySave [path]`     | `<leader>rw`   | Save review to file                                         |
+| `:CommentaryCopy`            | `<leader>ry`   | Copy review to clipboard                                    |
+| `:CommentaryClear`           | `<leader>rx`   | Clear all review comments                                   |
+| `:CommentaryDeleteComment`   | `<leader>rd`   | Delete comment at cursor position                           |
+| `:CommentaryEditComment`     | `<leader>re`   | Edit comment at cursor position                             |
+| `:CommentaryReply`           | `<leader>rr`   | Reply to the comment at the cursor                          |
+| `:CommentaryResolve`         | `<leader>ro`   | Mark the current thread as resolved                         |
+| `:CommentarySetStatus`       | -              | Set the overall review status                               |
+| `:CommentaryPreviousComment` | `[r`            | Jump to the previous attached comment in the current buffer |
+| `:CommentaryNextComment`     | `]r`            | Jump to the next attached comment in the current buffer     |
 
 ### Visual Indicators
 
@@ -311,15 +312,15 @@ end
 
 | Function                                            | Description                             |
 | --------------------------------------------------- | --------------------------------------- |
-| `require('code-review').add_comment(lines)`         | Add comment with optional context lines |
-| `require('code-review').show_comment_at_cursor()`   | Show comments at cursor                 |
-| `require('code-review').list_comments()`            | List all comments                       |
-| `require('code-review').preview()`                  | Open preview window                     |
-| `require('code-review').save(path)`                 | Save to file                            |
-| `require('code-review').copy()`                     | Copy to clipboard                       |
-| `require('code-review').clear()`                    | Clear all comments                      |
-| `require('code-review').delete_comment_at_cursor()` | Delete comment at cursor                |
-| `require('code-review').edit_comment_at_cursor()`   | Edit comment at cursor                  |
+| `require('commentary').add_comment(lines)`         | Add comment with optional context lines |
+| `require('commentary').show_comment_at_cursor()`   | Show comments at cursor                 |
+| `require('commentary').list_comments()`            | List all comments                       |
+| `require('commentary').preview()`                  | Open preview window                     |
+| `require('commentary').save(path)`                 | Save to file                            |
+| `require('commentary').copy()`                     | Copy to clipboard                       |
+| `require('commentary').clear()`                    | Clear all comments                      |
+| `require('commentary').delete_comment_at_cursor()` | Delete comment at cursor                |
+| `require('commentary').edit_comment_at_cursor()`   | Edit comment at cursor                  |
 
 ### Visual Mode Selection
 
@@ -373,7 +374,7 @@ This enables efficient workflow between AI assistants and human reviewers.
 
 <img src="assets/screenshot/picker.png" alt="Comment List Picker" />
 
-The `:CodeReviewList` command (`<leader>rl`) automatically selects the best available picker:
+The `:CommentaryList` command (`<leader>rl`) automatically selects the best available picker:
 
 1. **[Telescope](https://github.com/nvim-telescope/telescope.nvim)** (if installed)
 
@@ -449,7 +450,7 @@ commentary.nvim supports two storage backends:
 Comments are stored in memory during your Neovim session. This is the default behavior.
 
 ```lua
-require('code-review').setup({
+require('commentary').setup({
   comment = {
     storage = {
       backend = "memory",  -- Default
@@ -467,12 +468,12 @@ Comments are stored as individual files on disk, perfect for:
 - Integration with AI assistants
 
 ```lua
-require('code-review').setup({
+require('commentary').setup({
   comment = {
     storage = {
       backend = "file",
       file = {
-        dir = ".code-review",    -- Default: project root/.code-review/
+        dir = ".commentary",    -- Default: project root/.commentary/
         -- dir = ".reviews",     -- Alternative: project root/.reviews/
         -- dir = "~/reviews",    -- Absolute path: ~/reviews/
       },
@@ -487,7 +488,7 @@ require('code-review').setup({
 2. Files are saved to:
    - Relative paths: Resolved from project root (git root if available, otherwise cwd)
    - Absolute paths: Used as-is
-   - Default: `{project_root}/.code-review/`
+   - Default: `{project_root}/.commentary/`
 3. Comments persist across Neovim sessions
 4. External tools can monitor the directory for new files
 
@@ -507,7 +508,7 @@ Resolution is deliberately conservative. A picker labels comments as `[modified]
 The number of surrounding lines captured for new anchors is configurable:
 
 ```lua
-require('code-review').setup({
+require('commentary').setup({
   comment = {
     anchor = {
       context_lines = 3,

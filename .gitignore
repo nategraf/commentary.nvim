@@ -66,5 +66,5 @@ dist/
 # Dependencies
 deps/
 
-# Code review storage
-.code-review-storage/
+# Commentary storage
+.commentary/

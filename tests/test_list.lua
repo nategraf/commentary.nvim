@@ -1,9 +1,9 @@
-local file_storage = require("code-review.storage.file")
-local list = require("code-review.list")
-local thread = require("code-review.thread")
-local preview = require("code-review.list-preview")
+local file_storage = require("commentary.storage.file")
+local list = require("commentary.list")
+local thread = require("commentary.thread")
+local preview = require("commentary.list-preview")
 
-require("code-review.config").setup({})
+require("commentary.config").setup({})
 
 local T = MiniTest.new_set()
 
@@ -63,7 +63,7 @@ T["Telescope renders thread rows as file, line, and text"] = function()
   local thread_info = {
     data = {
       root_comment = {
-        file = "lua/code-review/list.lua",
+        file = "lua/commentary/list.lua",
         line_start = 12,
         line_end = 14,
         comment = "Keep the picker concise\nMore detail belongs in the preview.",
@@ -76,7 +76,7 @@ T["Telescope renders thread rows as file, line, and text"] = function()
 
   MiniTest.expect.equality(
     list._format_telescope_thread_entry(thread_info),
-    "lua/code-review/list.lua:12-14: Keep the picker concise"
+    "lua/commentary/list.lua:12-14: Keep the picker concise"
   )
 
   local display_items
@@ -92,10 +92,10 @@ T["Telescope renders thread rows as file, line, and text"] = function()
 
   MiniTest.expect.equality(
     make_display({ value = thread_info }),
-    "lua/code-review/list.lua:12-14: Keep the picker concise"
+    "lua/commentary/list.lua:12-14: Keep the picker concise"
   )
   MiniTest.expect.equality(display_items, {
-    { "lua/code-review/list.lua:", "TelescopeResultsIdentifier" },
+    { "lua/commentary/list.lua:", "TelescopeResultsIdentifier" },
     { "12-14: ", "TelescopeResultsNumber" },
     { "Keep the picker concise", "TelescopeResultsComment" },
   })

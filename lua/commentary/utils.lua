@@ -103,7 +103,7 @@ function M.get_selection_context(context_lines)
   context.line_count = #lines
   context.end_col = context.end_col or #(lines[#lines] or "")
 
-  local anchor_context = require("code-review.config").get("comment.anchor.context_lines") or 3
+  local anchor_context = require("commentary.config").get("comment.anchor.context_lines") or 3
   context.before_lines = vim.api.nvim_buf_get_lines(
     bufnr,
     math.max(0, context.line_start - anchor_context - 1),
@@ -132,7 +132,7 @@ end
 ---@return string
 function M.generate_filename(format)
   local timestamp = os.date("%Y-%m-%d-%H%M%S")
-  return string.format("code-review-%s.md", timestamp)
+  return string.format("commentary-%s.md", timestamp)
 end
 
 --- Copy text to clipboard

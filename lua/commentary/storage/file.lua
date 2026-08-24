@@ -1,6 +1,6 @@
 local M = {}
 
-local utils = require("code-review.utils")
+local utils = require("commentary.utils")
 
 local storage_dir = nil
 local comments_cache = nil
@@ -10,7 +10,7 @@ local cache_timestamp = 0
 ---@param filename string
 ---@return string|nil status, string id
 local function parse_filename(filename)
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local status_management = config.get("comment.status_management")
 
   if status_management then
@@ -35,7 +35,7 @@ end
 ---@param status string|nil
 ---@return string
 local function make_filename(id, status)
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local status_management = config.get("comment.status_management")
 
   if status_management and status then
@@ -55,7 +55,7 @@ local function determine_thread_status(thread_comments)
 
   -- Get the latest comment
   local latest_comment = thread_comments[#thread_comments]
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local claude_code_author = config.get("comment.claude_code_author")
 
   -- If latest author is Claude Code, status is "waiting-review"
@@ -74,7 +74,7 @@ local function get_storage_dir()
     return storage_dir
   end
 
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local dir = config.get("comment.storage.file.dir")
   storage_dir = utils.get_storage_dir(dir)
   return storage_dir
@@ -85,7 +85,7 @@ end
 ---@param status string? Optional status override
 ---@return string
 local function get_comment_filename(comment_data, status)
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local status_management = config.get("comment.status_management")
 
   local id
@@ -385,7 +385,7 @@ function M.add(comment_data)
         return (a.timestamp or 0) < (b.timestamp or 0)
       end)
 
-      local config = require("code-review.config")
+      local config = require("commentary.config")
       local status_management = config.get("comment.status_management")
 
       -- Determine new status based on latest author (only if status management is enabled)
@@ -504,7 +504,7 @@ function M.update(id, updates)
     end
   end
 
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local status_management = config.get("comment.status_management")
   local filepath = nil
 
@@ -544,7 +544,7 @@ end
 ---@return boolean success
 function M.delete(id)
   local dir = get_storage_dir()
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local status_management = config.get("comment.status_management")
 
   local comments = load_comments()
@@ -662,7 +662,7 @@ end
 ---@return string
 function M.format_comment_as_markdown(comment_data)
   local lines = {}
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local date_format = config.get("output.date_format")
 
   -- YAML frontmatter
@@ -719,7 +719,7 @@ end
 ---@return table|nil
 function M.get_thread(thread_id)
   local comments = load_comments()
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local status_management = config.get("comment.status_management")
 
   -- Find the root comment of this thread
@@ -763,7 +763,7 @@ end
 ---@param resolved_by string|nil User who resolved (unused now)
 ---@return boolean success
 function M.update_thread_status(thread_id, status, resolved_by)
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local status_management = config.get("comment.status_management")
 
   -- If status management is disabled, return false to indicate no action taken
@@ -832,7 +832,7 @@ end
 ---@return table<string, table>
 function M.get_all_threads()
   local comments = load_comments()
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local status_management = config.get("comment.status_management")
   local threads = {}
   local thread_files = {}
@@ -874,7 +874,7 @@ function M.format_thread_as_markdown(thread_comments)
   end
 
   local lines = {}
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local date_format = config.get("output.date_format")
 
   -- Find the root comment (should be the first one)

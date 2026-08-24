@@ -1,8 +1,8 @@
-local state = require("code-review.state")
-local thread = require("code-review.thread")
+local state = require("commentary.state")
+local thread = require("commentary.thread")
 
 -- Initialize plugin
-require("code-review").setup({
+require("commentary").setup({
   comment = {
     storage = { backend = "memory" },
   },
@@ -15,7 +15,7 @@ T["thread management"] = MiniTest.new_set({
   hooks = {
     pre_case = function()
       -- Reset and reinitialize for clean state
-      local memory = require("code-review.storage.memory")
+      local memory = require("commentary.storage.memory")
 
       -- Use _reset for complete cleanup
       state._reset()
@@ -178,8 +178,8 @@ end
 T["thread management"]["preserves thread state across storage backends"] = function()
   -- Test with file storage - reinitialize with file backend
   state._reset()
-  require("code-review.storage.memory")._reset()
-  require("code-review").setup({
+  require("commentary.storage.memory")._reset()
+  require("commentary").setup({
     comment = {
       storage = { backend = "file" },
       status_management = true, -- Enable status management for this test

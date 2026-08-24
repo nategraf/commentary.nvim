@@ -1,7 +1,7 @@
-local memory = require("code-review.storage.memory")
-local state = require("code-review.state")
-local ui = require("code-review.ui")
-local review = require("code-review")
+local memory = require("commentary.storage.memory")
+local state = require("commentary.state")
+local ui = require("commentary.ui")
+local review = require("commentary")
 
 review.setup({
   comment = {

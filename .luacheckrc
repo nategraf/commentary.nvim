@@ -37,7 +37,7 @@ globals = {
 
 -- Unused variables that are intentional
 files = {
-  ["lua/code-review/formatter.lua"] = {
+  ["lua/commentary/formatter.lua"] = {
     ignore = {
       "i", -- loop counter in parse_markdown
     },

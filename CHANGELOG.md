@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Fork renamed to commentary.nvim
+- **BREAKING**: Lua modules moved from `code-review` to `commentary`
+- **BREAKING**: Commands, events, highlights, and internal buffer names now use the `Commentary` namespace
+- **BREAKING**: The default file storage directory changed from `.code-review` to `.commentary`
 
 ## [0.6.0] - 2025-12-12
 
@@ -46,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2025-07-04
 
 ### Added
-- Delete comment at cursor position with `<leader>rd` keymap and `:CodeReviewDeleteComment` command
+- Delete comment at cursor position with `<leader>rd` keymap and `:CommentaryDeleteComment` command
 - Auto-copy formatted comment to clipboard when adding new comments with `comment.auto_copy_on_add` option
 - Word wrap support for comment input popup
 
@@ -56,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2025-07-01
 
 ### Added
-- Comment list functionality with `<leader>rl` keymap and `:CodeReviewList` command
+- Comment list functionality with `<leader>rl` keymap and `:CommentaryList` command
 - Visual indicators (signs and virtual text) for commented lines
 
 ### Fixed

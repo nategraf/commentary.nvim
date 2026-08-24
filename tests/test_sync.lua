@@ -1,7 +1,7 @@
-local config = require("code-review.config")
-local memory = require("code-review.storage.memory")
-local notification = require("code-review.notification")
-local state = require("code-review.state")
+local config = require("commentary.config")
+local memory = require("commentary.storage.memory")
+local notification = require("commentary.notification")
+local state = require("commentary.state")
 
 local events
 local notifications
@@ -43,10 +43,10 @@ local T = MiniTest.new_set({
       end
 
       notification.setup()
-      local group = vim.api.nvim_create_augroup("CodeReviewSyncTests", { clear = true })
+      local group = vim.api.nvim_create_augroup("CommentarySyncTests", { clear = true })
       vim.api.nvim_create_autocmd("User", {
         group = group,
-        pattern = "CodeReviewCommentsChanged",
+        pattern = "CommentaryCommentsChanged",
         callback = function(args)
           table.insert(events, vim.deepcopy(args.data))
         end,
@@ -55,7 +55,7 @@ local T = MiniTest.new_set({
 
     post_case = function()
       vim.notify = original_notify
-      pcall(vim.api.nvim_del_augroup_by_name, "CodeReviewSyncTests")
+      pcall(vim.api.nvim_del_augroup_by_name, "CommentarySyncTests")
       if test_dir then
         vim.fn.delete(test_dir, "rf")
         test_dir = nil
@@ -109,13 +109,13 @@ T["file storage loads comments written by an external process"] = function()
     notifications = { enabled = true },
   })
   state._reset()
-  package.loaded["code-review.storage.file"] = nil
+  package.loaded["commentary.storage.file"] = nil
   state.init()
 
   vim.fn.mkdir(test_dir, "p")
-  local file_storage = require("code-review.storage.file")
+  local file_storage = require("commentary.storage.file")
   local markdown = file_storage.format_comment_as_markdown(make_comment("external-file", "Written outside Neovim"))
-  require("code-review.utils").save_to_file(test_dir .. "/external-file.md", markdown)
+  require("commentary.utils").save_to_file(test_dir .. "/external-file.md", markdown)
 
   local changes = state.sync_from_storage()
 

@@ -1,13 +1,13 @@
 local M = {}
 
-local state = require("code-review.state")
-local utils = require("code-review.utils")
-local ui = require("code-review.ui")
-local anchor = require("code-review.anchor")
+local state = require("commentary.state")
+local utils = require("commentary.utils")
+local ui = require("commentary.ui")
+local anchor = require("commentary.anchor")
 
 -- Create namespaces once at module load
-local ns_virtual_text = vim.api.nvim_create_namespace("CodeReviewVirtualText")
-local ns_context = vim.api.nvim_create_namespace("code_review_context")
+local ns_virtual_text = vim.api.nvim_create_namespace("CommentaryVirtualText")
+local ns_context = vim.api.nvim_create_namespace("commentary_context")
 
 --- Add a comment at the current location
 ---@param context_lines number? Number of context lines
@@ -49,9 +49,9 @@ function M.add(context_lines)
     state.add_comment(comment_data)
 
     -- Copy to clipboard if enabled
-    local config = require("code-review.config")
+    local config = require("commentary.config")
     if config.get("comment.auto_copy_on_add") and comment_data then
-      local formatter = require("code-review.formatter")
+      local formatter = require("commentary.formatter")
       local formatted_text = formatter.format({ comment_data })
       utils.copy_to_clipboard(formatted_text)
     end
@@ -73,7 +73,7 @@ local add_virtual_text
 
 --- Update visual indicators (signs and virtual text)
 function M.update_indicators()
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local comments = state.get_comments()
 
   -- Clear existing indicators
@@ -106,12 +106,12 @@ end
 function M.clear_indicators()
   -- Clear signs from all buffers
   -- Using pcall to handle different Neovim versions
-  local ok, _ = pcall(vim.fn.sign_unplace, "CodeReviewSigns", {})
+  local ok, _ = pcall(vim.fn.sign_unplace, "CommentarySigns", {})
   if not ok then
     -- Fallback: clear signs buffer by buffer
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_is_valid(buf) then
-        pcall(vim.fn.sign_unplace, "CodeReviewSigns", { buffer = buf })
+        pcall(vim.fn.sign_unplace, "CommentarySigns", { buffer = buf })
       end
     end
   end
@@ -128,35 +128,35 @@ end
 ---@param bufnr number
 ---@param comments table[]
 add_signs = function(bufnr, comments)
-  local config = require("code-review.config").get("ui.signs")
+  local config = require("commentary.config").get("ui.signs")
 
   -- Remove existing signs first
-  vim.fn.sign_unplace("CodeReviewSigns", { buffer = bufnr })
+  vim.fn.sign_unplace("CommentarySigns", { buffer = bufnr })
 
   -- Define signs for each status (using same text but different colors)
-  vim.fn.sign_define("CodeReviewWaitingReview", {
+  vim.fn.sign_define("CommentaryWaitingReview", {
     text = config.text,
-    texthl = "CodeReviewWaitingReview",
+    texthl = "CommentaryWaitingReview",
     linehl = config.linehl,
     numhl = config.numhl,
   })
 
-  vim.fn.sign_define("CodeReviewActionRequired", {
+  vim.fn.sign_define("CommentaryActionRequired", {
     text = config.text,
-    texthl = "CodeReviewActionRequired",
+    texthl = "CommentaryActionRequired",
     linehl = config.linehl,
     numhl = config.numhl,
   })
 
-  vim.fn.sign_define("CodeReviewResolved", {
+  vim.fn.sign_define("CommentaryResolved", {
     text = config.text,
-    texthl = "CodeReviewResolved",
+    texthl = "CommentaryResolved",
     linehl = config.linehl,
     numhl = config.numhl,
   })
 
   -- Default sign for unknown status
-  vim.fn.sign_define("CodeReviewComment", {
+  vim.fn.sign_define("CommentaryComment", {
     text = config.text,
     texthl = config.texthl,
     linehl = config.linehl,
@@ -172,7 +172,7 @@ add_signs = function(bufnr, comments)
 
       -- If resolved thread, mark as resolved
       if comment.thread_id then
-        local sign_state = require("code-review.state")
+        local sign_state = require("commentary.state")
         local thread_data = sign_state.get_all_threads()[comment.thread_id]
         if thread_data and thread_data.status == "resolved" then
           status = "resolved"
@@ -191,16 +191,16 @@ add_signs = function(bufnr, comments)
 
   -- Place signs based on status
   for line, status in pairs(status_by_line) do
-    local sign_name = "CodeReviewComment"
+    local sign_name = "CommentaryComment"
     if status == "waiting-review" then
-      sign_name = "CodeReviewWaitingReview"
+      sign_name = "CommentaryWaitingReview"
     elseif status == "action-required" then
-      sign_name = "CodeReviewActionRequired"
+      sign_name = "CommentaryActionRequired"
     elseif status == "resolved" then
-      sign_name = "CodeReviewResolved"
+      sign_name = "CommentaryResolved"
     end
 
-    vim.fn.sign_place(0, "CodeReviewSigns", sign_name, bufnr, { lnum = line, priority = 100 })
+    vim.fn.sign_place(0, "CommentarySigns", sign_name, bufnr, { lnum = line, priority = 100 })
   end
 end
 
@@ -208,7 +208,7 @@ end
 ---@param bufnr number
 ---@param comments table[]
 add_virtual_text = function(bufnr, comments)
-  local config = require("code-review.config").get("ui.virtual_text")
+  local config = require("commentary.config").get("ui.virtual_text")
 
   -- Group comments by line and thread for virtual text
   local threads_by_line = {}
@@ -248,7 +248,7 @@ add_virtual_text = function(bufnr, comments)
       end
 
       -- Check if thread is resolved
-      local comment_state = require("code-review.state")
+      local comment_state = require("commentary.state")
       local thread_data = comment_state.get_all_threads()[thread_id]
       if thread_data and thread_data.status == "resolved" then
         status = "resolved"
@@ -272,10 +272,10 @@ add_virtual_text = function(bufnr, comments)
         local prefix = config.prefix
         if status == "waiting-review" then
           prefix = "󰇮 " -- Mail icon for waiting review (Nerd Font)
-          highlight = "CodeReviewWaitingReview"
+          highlight = "CommentaryWaitingReview"
         elseif status == "action-required" then
           prefix = "○ "
-          highlight = "CodeReviewActionRequired"
+          highlight = "CommentaryActionRequired"
         end
 
         local first_line = latest_comment.comment:match("^[^\n]*") or latest_comment.comment

@@ -3,7 +3,7 @@ local T = MiniTest.new_set()
 local helpers = require("tests.helpers")
 
 -- Initialize plugin at file load time
-require("code-review").setup({
+require("commentary").setup({
   comment = {
     storage = { backend = "memory" },
   },
@@ -13,8 +13,8 @@ require("code-review").setup({
 T.hooks = {
   pre_case = function()
     -- Reset and reinitialize for clean state
-    local state = require("code-review.state")
-    local memory = require("code-review.storage.memory")
+    local state = require("commentary.state")
+    local memory = require("commentary.storage.memory")
 
     -- Use _reset for complete cleanup
     state._reset()
@@ -34,7 +34,7 @@ T["large data"] = MiniTest.new_set()
 T["large data"]["handles very large comments"] = function()
   -- Create a very large comment (10KB)
   local large_comment = string.rep("This is a long comment line. ", 350)
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   local id = state.add_comment({
     file = "test.lua",
@@ -50,7 +50,7 @@ T["large data"]["handles very large comments"] = function()
 end
 
 T["large data"]["handles many comments"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Get initial comment count
   local initial_comments = state.get_comments()
@@ -81,7 +81,7 @@ end
 T["special characters"] = MiniTest.new_set()
 
 T["special characters"]["handles quotes and escapes in comments"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   local special_comments = {
     [[This has "double quotes"]],
@@ -108,7 +108,7 @@ in it]],
 end
 
 T["special characters"]["handles unicode characters"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   local unicode_comments = {
     "This has emojis 🚀 ✨ 🎉",
@@ -132,7 +132,7 @@ T["special characters"]["handles unicode characters"] = function()
 end
 
 T["special characters"]["handles special file names"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   local special_files = {
     "file with spaces.lua",
@@ -163,7 +163,7 @@ end
 T["boundary conditions"] = MiniTest.new_set()
 
 T["boundary conditions"]["handles empty comment"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   local id = state.add_comment({
     file = "test.lua",
@@ -179,7 +179,7 @@ T["boundary conditions"]["handles empty comment"] = function()
 end
 
 T["boundary conditions"]["handles whitespace-only comment"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   local whitespace_comments = {
     " ",
@@ -204,7 +204,7 @@ T["boundary conditions"]["handles whitespace-only comment"] = function()
 end
 
 T["boundary conditions"]["handles single-line file"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Create buffer with single line
   local buf = vim.api.nvim_create_buf(false, true)
@@ -225,7 +225,7 @@ T["boundary conditions"]["handles single-line file"] = function()
 end
 
 T["boundary conditions"]["handles comment spanning entire file"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Create buffer with multiple lines
   local buf = vim.api.nvim_create_buf(false, true)
@@ -259,7 +259,7 @@ end
 T["multiple comments"] = MiniTest.new_set()
 
 T["multiple comments"]["handles multiple comments on same line"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Add multiple comments on the same line
   local ids = {}
@@ -291,7 +291,7 @@ T["multiple comments"]["handles multiple comments on same line"] = function()
 end
 
 T["multiple comments"]["handles overlapping comment ranges"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Add overlapping comments
   state.add_comment({
@@ -330,7 +330,7 @@ end
 T["file handling"] = MiniTest.new_set()
 
 T["file handling"]["handles files without extensions"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   local files_without_ext = {
     "Makefile",
@@ -355,7 +355,7 @@ T["file handling"]["handles files without extensions"] = function()
 end
 
 T["file handling"]["handles very long file paths"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Create a very long path (300+ chars)
   local long_path = "/very/long/path/" .. string.rep("subdir/", 40) .. "file.lua"
@@ -376,7 +376,7 @@ end
 T["performance"] = MiniTest.new_set()
 
 T["performance"]["handles rapid add/delete operations"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Get initial count
   local initial_count = #state.get_comments()

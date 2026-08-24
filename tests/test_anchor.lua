@@ -1,5 +1,5 @@
-local anchor = require("code-review.anchor")
-local file_storage = require("code-review.storage.file")
+local anchor = require("commentary.anchor")
+local file_storage = require("commentary.storage.file")
 
 vim.opt_global.swapfile = false
 vim.opt_local.swapfile = false
@@ -97,7 +97,7 @@ T["unresolved comments are visible but not navigable in quickfix"] = function()
     anchor_resolved = false,
   }
 
-  local list = require("code-review.list")
+  local list = require("commentary.list")
   local item = list._comment_to_qf_item(unresolved)
   MiniTest.expect.equality(item.valid, 0)
   MiniTest.expect.equality(item.lnum, 0)

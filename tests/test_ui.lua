@@ -1,6 +1,6 @@
-local ui = require("code-review.ui")
+local ui = require("commentary.ui")
 
-require("code-review.config").setup({})
+require("commentary.config").setup({})
 
 local T = MiniTest.new_set()
 
@@ -60,7 +60,7 @@ T["comment views navigate by wrapped screen lines"] = function()
 end
 
 T["comment view actions target the threaded comment under the cursor"] = function()
-  local review = require("code-review")
+  local review = require("commentary")
   local root = comment("root", "Root comment", 1)
   local reply = comment("reply", "Reply comment", 2, root.id)
   local actions = {

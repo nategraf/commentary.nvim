@@ -1,6 +1,6 @@
 local M = {}
 
-local config = require("code-review.config")
+local config = require("commentary.config")
 
 --- Format comments to markdown
 ---@param comments table[]
@@ -279,7 +279,7 @@ end
 ---@param content string
 ---@param path string?
 function M.save_to_file(content, path)
-  local utils = require("code-review.utils")
+  local utils = require("commentary.utils")
 
   if not path then
     local save_dir = config.get("output.save_dir") or vim.fn.getcwd()

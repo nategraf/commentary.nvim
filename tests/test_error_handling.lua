@@ -13,7 +13,7 @@ local original_sign_unplace = vim.fn.sign_unplace
 local original_io_open = io.open
 
 -- Initialize plugin at file load time
-require("code-review").setup({
+require("commentary").setup({
   comment = {
     storage = { backend = "memory" },
   },
@@ -23,8 +23,8 @@ require("code-review").setup({
 T.hooks = {
   pre_case = function()
     -- Reset and reinitialize for clean state
-    local state = require("code-review.state")
-    local memory = require("code-review.storage.memory")
+    local state = require("commentary.state")
+    local memory = require("commentary.storage.memory")
 
     -- Use _reset for complete cleanup
     state._reset()
@@ -67,7 +67,7 @@ T["file I/O errors"]["save_to_file handles write failure"] = function()
     return original_io_open(path, mode)
   end
 
-  local utils = require("code-review.utils")
+  local utils = require("commentary.utils")
   local success = utils.save_to_file(test_path, "content")
 
   MiniTest.expect.equality(success, false)
@@ -89,7 +89,7 @@ T["ui errors"]["handles buffer creation failure"] = function()
     error("Buffer creation failed")
   end
 
-  local ui = require("code-review.ui")
+  local ui = require("commentary.ui")
   local ok, err = pcall(ui.show_comment_input, function() end)
 
   MiniTest.expect.equality(ok, false)
@@ -115,7 +115,7 @@ T["ui errors"]["handles window creation failure"] = function()
     error("Window creation failed")
   end
 
-  local ui = require("code-review.ui")
+  local ui = require("commentary.ui")
   local ok, err = pcall(ui.show_comment_input, function() end)
 
   MiniTest.expect.equality(ok, false)
@@ -138,7 +138,7 @@ T["ui errors"]["handles invalid window operations"] = function()
     return false
   end
 
-  local ui = require("code-review.ui")
+  local ui = require("commentary.ui")
 
   -- Try to show comment list with invalid window
   local ok = pcall(ui.show_comment_list, {})
@@ -154,7 +154,7 @@ end
 T["boundary and validation"] = MiniTest.new_set()
 
 T["boundary and validation"]["handles nil input gracefully"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Try to add comment with empty values
   local ok = pcall(state.add_comment, {
@@ -180,7 +180,7 @@ T["boundary and validation"]["handles nil input gracefully"] = function()
 end
 
 T["boundary and validation"]["handles invalid line numbers"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Try with reversed line numbers
   local id = state.add_comment({
@@ -199,7 +199,7 @@ T["boundary and validation"]["handles invalid line numbers"] = function()
 end
 
 T["boundary and validation"]["handles empty state operations"] = function()
-  local state = require("code-review.state")
+  local state = require("commentary.state")
 
   -- Clear all comments
   state.clear()
@@ -226,7 +226,7 @@ T["optional dependencies"]["handles missing telescope gracefully"] = function()
   package.loaded["telescope"] = nil
   package.loaded["telescope.builtin"] = nil
 
-  local comment = require("code-review.comment")
+  local comment = require("commentary.comment")
 
   -- Try to select comment which uses telescope if available
   local ok = pcall(comment.select_comment)
@@ -240,7 +240,7 @@ T["optional dependencies"]["handles missing nui gracefully"] = function()
   package.loaded["nui.popup"] = nil
   package.loaded["nui.input"] = nil
 
-  local ui = require("code-review.ui")
+  local ui = require("commentary.ui")
 
   -- Try to show UI which uses nui if available
   local ok = pcall(ui.show_comment_input, function() end)

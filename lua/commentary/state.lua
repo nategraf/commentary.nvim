@@ -98,7 +98,7 @@ local function emit_changes(changes, source)
   end
 
   vim.api.nvim_exec_autocmds("User", {
-    pattern = "CodeReviewCommentsChanged",
+    pattern = "CommentaryCommentsChanged",
     modeline = false,
     data = vim.tbl_extend("force", { source = source }, changes),
   })
@@ -118,13 +118,13 @@ function M.init()
     return
   end
 
-  local config = require("code-review.config")
+  local config = require("commentary.config")
   local backend = config.get("comment.storage.backend")
 
   if backend == "file" then
-    storage = require("code-review.storage.file")
+    storage = require("commentary.storage.file")
   else
-    storage = require("code-review.storage.memory")
+    storage = require("commentary.storage.memory")
   end
 
   storage.init()
@@ -135,7 +135,7 @@ end
 --- Get storage backend
 ---@return table
 local function get_storage()
-  assert(initialized, "State not initialized. Call require('code-review').setup() first.")
+  assert(initialized, "State not initialized. Call require('commentary').setup() first.")
   return storage
 end
 
@@ -148,7 +148,7 @@ end
 --- Refresh UI elements (markers, etc.) after state changes
 function M.refresh_ui()
   -- Update visual indicators (signs and virtual text)
-  require("code-review.comment").update_indicators()
+  require("commentary.comment").update_indicators()
 
   -- Future: Update other UI elements like statusline, floating windows, etc.
 end
@@ -157,7 +157,7 @@ end
 ---@param source string? Change source; defaults to "storage"
 ---@return table changes
 function M.sync_from_storage(source)
-  require("code-review.anchor").invalidate_cache()
+  require("commentary.anchor").invalidate_cache()
   -- Explicitly reload storage if it has reload method
   if storage and storage.reload then
     storage.reload()
@@ -169,7 +169,7 @@ end
 --- Clear all comments but keep session active
 function M.clear()
   get_storage().clear()
-  require("code-review.anchor").clear()
+  require("commentary.anchor").clear()
   finish_change("editor")
   vim.notify("All comments cleared")
 end
@@ -211,7 +211,7 @@ end
 --- Get all comments
 ---@return table[]
 function M.get_comments()
-  return require("code-review.anchor").resolve_all(get_storage().get_all())
+  return require("commentary.anchor").resolve_all(get_storage().get_all())
 end
 
 --- Get a specific comment by ID
@@ -284,7 +284,7 @@ end
 function M.replace_comments(new_comments)
   local storage_backend = get_storage()
 
-  require("code-review.anchor").clear()
+  require("commentary.anchor").clear()
 
   -- Clear existing comments
   storage_backend.clear()
@@ -313,7 +313,7 @@ end
 ---@return table[]
 function M.get_comments_at_location(file, line)
   local results = {}
-  local anchor = require("code-review.anchor")
+  local anchor = require("commentary.anchor")
   for _, comment in ipairs(M.get_comments()) do
     if anchor.is_attached(comment) and comment.file == file and line >= comment.line_start and line <= comment.line_end then
       table.insert(results, comment)
@@ -333,7 +333,7 @@ function M.add_reply(parent_id, reply_text)
     return nil
   end
 
-  local thread = require("code-review.thread")
+  local thread = require("commentary.thread")
 
   -- Always create a reply to the thread, not nested under specific comment
   local reply = thread.create_reply(parent, reply_text)
@@ -350,7 +350,7 @@ end
 ---@return table[] comments
 function M.get_thread_comments(thread_id)
   local all_comments = M.get_comments()
-  local thread = require("code-review.thread")
+  local thread = require("commentary.thread")
   return thread.get_thread_comments(thread_id, all_comments)
 end
 
@@ -367,7 +367,7 @@ function M.resolve_thread(thread_id)
     vim.notify("Thread resolved", vim.log.levels.INFO)
   else
     -- Check if status management is disabled
-    local config = require("code-review.config")
+    local config = require("commentary.config")
     if config.get("comment.storage.backend") == "file" and not config.get("comment.status_management") then
       vim.notify("Status management is disabled. Enable 'status_management' to resolve threads.", vim.log.levels.WARN)
     end
@@ -388,7 +388,7 @@ function M.reopen_thread(thread_id)
     vim.notify("Thread reopened", vim.log.levels.INFO)
   else
     -- Check if status management is disabled
-    local config = require("code-review.config")
+    local config = require("commentary.config")
     if config.get("comment.storage.backend") == "file" and not config.get("comment.status_management") then
       vim.notify("Status management is disabled. Enable 'status_management' to reopen threads.", vim.log.levels.WARN)
     end
@@ -416,7 +416,7 @@ end
 --- Reset internal state (for testing purposes)
 ---@private
 function M._reset()
-  require("code-review.anchor").clear()
+  require("commentary.anchor").clear()
   initialized = false
   storage = nil
   known_comments = nil

@@ -1,8 +1,8 @@
-local config = require("code-review.config")
-local memory = require("code-review.storage.memory")
-local state = require("code-review.state")
-local review = require("code-review")
-local utils = require("code-review.utils")
+local config = require("commentary.config")
+local memory = require("commentary.storage.memory")
+local state = require("commentary.state")
+local review = require("commentary")
+local utils = require("commentary.utils")
 
 local bufnr
 local original_bufnr
@@ -33,7 +33,7 @@ local T = MiniTest.new_set({
       vim.api.nvim_set_current_buf(bufnr)
     end,
     post_case = function()
-      require("code-review.anchor").clear()
+      require("commentary.anchor").clear()
       if vim.api.nvim_buf_is_valid(original_bufnr) then
         vim.api.nvim_set_current_buf(original_bufnr)
       end

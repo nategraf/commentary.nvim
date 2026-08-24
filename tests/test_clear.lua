@@ -1,7 +1,7 @@
-local state = require("code-review.state")
-local memory = require("code-review.storage.memory")
+local state = require("commentary.state")
+local memory = require("commentary.storage.memory")
 
-require("code-review").setup({
+require("commentary").setup({
   comment = {
     storage = { backend = "memory" },
   },
@@ -42,7 +42,7 @@ T["clear requires confirmation"] = function()
     callback("No")
   end
 
-  require("code-review").clear()
+  require("commentary").clear()
 
   MiniTest.expect.match(prompt, "Delete all 1 review comment")
   MiniTest.expect.equality(#state.get_comments(), 1)
@@ -54,7 +54,7 @@ T["clear deletes comments after confirmation"] = function()
     callback("Yes")
   end
 
-  require("code-review").clear()
+  require("commentary").clear()
 
   MiniTest.expect.equality(#state.get_comments(), 0)
 end
@@ -68,7 +68,7 @@ T["clear skips confirmation when there are no comments"] = function()
     notification = message
   end
 
-  require("code-review").clear()
+  require("commentary").clear()
 
   MiniTest.expect.equality(notification, "No comments to clear")
 end

@@ -1,11 +1,11 @@
----@class CodeReviewThread
+---@class CommentaryThread
 ---@field id string Thread ID
 ---@field root_comment_id string ID of the root comment
 ---@field status string Thread status: 'open', 'resolved', 'outdated'
 ---@field resolved_by string|nil User who resolved the thread
 ---@field resolved_at number|nil Timestamp when resolved
 
----@class CodeReviewComment
+---@class CommentaryComment
 ---@field id string Comment ID
 ---@field thread_id string Thread this comment belongs to
 ---@field parent_id string|nil Parent comment ID (nil for root comments)
