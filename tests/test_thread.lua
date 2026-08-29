@@ -39,17 +39,8 @@ T["thread management"]["creates thread for root comment"] = function()
     comment = "This needs refactoring",
   })
 
-  -- Check that thread was created
-  local threads = state.get_all_threads()
-  local thread_count = vim.tbl_count(threads)
-  MiniTest.expect.equality(thread_count, 1)
-
-  -- Verify thread properties
   local thread_id = comment_id .. "_thread"
-  local thread_data = threads[thread_id]
-  MiniTest.expect.equality(thread_data ~= nil, true)
-  MiniTest.expect.equality(thread_data.status, "open")
-  MiniTest.expect.equality(thread_data.root_comment_id, comment_id)
+  MiniTest.expect.equality(state.get_comment(comment_id).thread_id, thread_id)
 end
 
 T["thread management"]["adds replies to thread"] = function()
@@ -69,38 +60,6 @@ T["thread management"]["adds replies to thread"] = function()
   local reply_comment = state.get_comment(reply_id)
   MiniTest.expect.equality(reply_comment.thread_id, root_id .. "_thread")
   MiniTest.expect.equality(reply_comment.parent_id, root_id)
-end
-
-T["thread management"]["resolves and reopens threads"] = function()
-  -- Add comment to create thread
-  local comment_id = state.add_comment({
-    file = "test.lua",
-    line_start = 1,
-    line_end = 1,
-    comment = "Fix this bug",
-  })
-
-  local thread_id = comment_id .. "_thread"
-
-  -- Resolve thread
-  local success = state.resolve_thread(thread_id)
-  MiniTest.expect.equality(success, true)
-
-  -- Check thread status
-  local threads = state.get_all_threads()
-  MiniTest.expect.equality(threads[thread_id].status, "resolved")
-  MiniTest.expect.equality(threads[thread_id].resolved_by ~= nil, true)
-  MiniTest.expect.equality(threads[thread_id].resolved_at ~= nil, true)
-
-  -- Reopen thread
-  success = state.reopen_thread(thread_id)
-  MiniTest.expect.equality(success, true)
-
-  -- Check thread status again
-  threads = state.get_all_threads()
-  MiniTest.expect.equality(threads[thread_id].status, "open")
-  MiniTest.expect.equality(threads[thread_id].resolved_by, nil)
-  MiniTest.expect.equality(threads[thread_id].resolved_at, nil)
 end
 
 T["thread management"]["builds thread tree from comments"] = function()
@@ -165,44 +124,12 @@ T["thread management"]["handles multiple threads"] = function()
     table.insert(thread_ids, id .. "_thread")
   end
 
-  -- Check all threads exist
-  local threads = state.get_all_threads()
+  local threads = thread.build_thread_tree(state.get_comments())
   MiniTest.expect.equality(vim.tbl_count(threads), 3)
 
   for _, thread_id in ipairs(thread_ids) do
     MiniTest.expect.equality(threads[thread_id] ~= nil, true)
-    MiniTest.expect.equality(threads[thread_id].status, "open")
   end
-end
-
-T["thread management"]["preserves thread state across storage backends"] = function()
-  -- Test with file storage - reinitialize with file backend
-  state._reset()
-  require("commentary.storage.memory")._reset()
-  require("commentary").setup({
-    comment = {
-      storage = { backend = "file" },
-      status_management = true, -- Enable status management for this test
-    },
-  })
-  state.init()
-
-  local comment_id = state.add_comment({
-    file = "test.lua",
-    line_start = 1,
-    line_end = 1,
-    comment = "Test thread persistence",
-  })
-
-  local thread_id = comment_id .. "_thread"
-  state.resolve_thread(thread_id)
-
-  -- Simulate reloading
-  state.sync_from_storage()
-
-  -- Check thread state is preserved
-  local threads = state.get_all_threads()
-  MiniTest.expect.equality(threads[thread_id].status, "resolved")
 end
 
 return T

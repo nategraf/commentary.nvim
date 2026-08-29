@@ -14,11 +14,6 @@ function M.setup(opts)
   state.init()
   require("commentary.notification").setup()
 
-  -- Define highlight groups for different statuses
-  vim.api.nvim_set_hl(0, "CommentaryWaitingReview", { fg = "#50fa7b", default = true }) -- Green (informative)
-  vim.api.nvim_set_hl(0, "CommentaryActionRequired", { fg = "#6c7086", default = true }) -- Light gray (pending)
-  vim.api.nvim_set_hl(0, "CommentaryResolved", { fg = "#44475a", default = true }) -- Dark gray (resolved)
-
   -- Create commands
   vim.api.nvim_create_user_command("CommentaryClear", function()
     M.clear()
@@ -68,10 +63,6 @@ function M.setup(opts)
     M.reply_to_comment_at_cursor()
   end, { desc = "Reply to comment at cursor position" })
 
-  vim.api.nvim_create_user_command("CommentaryResolve", function()
-    M.resolve_thread_at_cursor()
-  end, { desc = "Resolve thread at cursor position" })
-
   vim.api.nvim_create_user_command("CommentaryPreviousComment", function()
     M.previous_comment()
   end, { desc = "Jump to the previous review comment" })
@@ -79,20 +70,6 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("CommentaryNextComment", function()
     M.next_comment()
   end, { desc = "Jump to the next review comment" })
-
-  vim.api.nvim_create_user_command("CommentarySetStatus", function(args)
-    if args.args == "" then
-      vim.notify("Usage: :CommentarySetStatus <draft|open|resolved|closed>", vim.log.levels.ERROR)
-      return
-    end
-    M.set_review_status(args.args)
-  end, {
-    desc = "Set review status",
-    nargs = 1,
-    complete = function()
-      return { "draft", "open", "resolved", "closed" }
-    end,
-  })
 
   -- Setup keymaps if enabled
   local keymaps = config.get("keymaps")
@@ -121,7 +98,6 @@ function M.setup(opts)
             delete_comment = "Delete comment at cursor",
             edit_comment = "Edit comment at cursor",
             reply_comment = "Reply to comment at cursor",
-            resolve_thread = "Resolve thread at cursor",
             previous_comment = "Previous review comment",
             next_comment = "Next review comment",
           }
@@ -139,7 +115,6 @@ function M.setup(opts)
             delete_comment = M.delete_comment_at_cursor,
             edit_comment = M.edit_comment_at_cursor,
             reply_comment = M.reply_to_comment_at_cursor,
-            resolve_thread = M.resolve_thread_at_cursor,
             previous_comment = M.previous_comment,
             next_comment = M.next_comment,
           }
@@ -391,10 +366,7 @@ function M.show_comment_at_cursor()
   else
     -- Multiple threads, let user choose
     local thread_list = {}
-    local all_threads = state.get_all_threads()
-
     for thread_id, _ in pairs(threads) do
-      local thread_data = all_threads[thread_id]
       local thread_comments = state.get_thread_comments(thread_id)
       local preview = ""
       if #thread_comments > 0 then
@@ -406,12 +378,7 @@ function M.show_comment_at_cursor()
 
       table.insert(thread_list, {
         id = thread_id,
-        display = string.format(
-          "[%s] %s (%d comments)",
-          thread_data and thread_data.status or "open",
-          preview,
-          #thread_comments
-        ),
+        display = string.format("%s (%d comments)", preview, #thread_comments),
         thread_id = thread_id,
       })
     end
@@ -534,98 +501,6 @@ function M.reply_to_comment_at_cursor()
       M.reply_to_comment(comment_to_reply)
     end)
   end
-end
-
---- Resolve thread at cursor position
-function M.resolve_thread_at_cursor()
-  local bufnr = vim.api.nvim_get_current_buf()
-  local file = utils.normalize_path(vim.api.nvim_buf_get_name(bufnr))
-  local row = vim.api.nvim_win_get_cursor(0)[1]
-
-  -- Find comments for current line
-  local line_comments = state.get_comments_at_location(file, row)
-
-  if #line_comments == 0 then
-    vim.notify("No comment at cursor position", vim.log.levels.WARN)
-    return
-  end
-
-  -- Get unique threads
-  local threads = {}
-  for _, c in ipairs(line_comments) do
-    if c.thread_id then
-      threads[c.thread_id] = true
-    end
-  end
-
-  local thread_count = vim.tbl_count(threads)
-  if thread_count == 0 then
-    vim.notify("No thread found", vim.log.levels.WARN)
-    return
-  elseif thread_count == 1 then
-    local thread_id = next(threads)
-    state.resolve_thread(thread_id)
-  else
-    -- Multiple threads, let user choose
-    local thread_list = {}
-    local all_threads = state.get_all_threads()
-
-    for thread_id, _ in pairs(threads) do
-      local thread_data = all_threads[thread_id]
-      if thread_data then
-        -- Get thread comments for preview
-        local thread_comments = state.get_thread_comments(thread_id)
-        local preview = ""
-        if #thread_comments > 0 then
-          preview = thread_comments[1].comment:sub(1, 50)
-          if #thread_comments[1].comment > 50 then
-            preview = preview .. "..."
-          end
-        end
-
-        table.insert(thread_list, {
-          id = thread_id,
-          display = string.format("[%s] %s (%d comments)", thread_data.status or "open", preview, #thread_comments),
-          thread_data = thread_data,
-        })
-      end
-    end
-
-    -- Sort by thread ID for consistent ordering
-    table.sort(thread_list, function(a, b)
-      return a.id < b.id
-    end)
-
-    -- Show selection UI
-    vim.ui.select(thread_list, {
-      prompt = "Select thread to resolve:",
-      format_item = function(item)
-        return item.display
-      end,
-    }, function(choice)
-      if choice then
-        state.resolve_thread(choice.id)
-      end
-    end)
-  end
-end
-
---- Resolve the thread containing a specific comment
----@param comment_data table Comment whose thread should be resolved
-function M.resolve_comment_thread(comment_data)
-  local thread_id = comment_data.thread_id or comment_data.id
-  if not thread_id then
-    vim.notify("No thread found", vim.log.levels.WARN)
-    return false
-  end
-  return state.resolve_thread(thread_id)
-end
-
---- Set review status
----@param status string New status
-function M.set_review_status(status)
-  local review = require("commentary.review")
-  review.update_status(status)
 end
 
 local function comment_picker_label(item)

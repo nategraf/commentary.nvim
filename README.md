@@ -43,7 +43,7 @@ commentary.nvim is a fork of [code-review.nvim](https://github.com/choplin/code-
 - 👁️ **Smart navigation** - Jump between comments, view at cursor
 - ✏️ **Live preview** - See and edit all your comments in one place
 - 🔍 **Find comments** - List all with `<leader>rl` using Telescope, fzf, or quickfix
-- 💬 **Thread discussions** - Reply to comments and resolve threads
+- 💬 **Thread discussions** - Keep replies grouped with their comments
 
 ## 📦 Installation
 
@@ -148,13 +148,6 @@ require('commentary').setup({
       },
     },
     auto_copy_on_add = false, -- Automatically copy each new comment to clipboard when added
-    -- Author name used by Claude Code (for automatic status management)
-    -- Comments from this author trigger "waiting-review" status
-    -- Comments from other authors trigger "action-required" status
-    claude_code_author = 'Claude Code',
-    -- Enable filename-based status management (only works with file storage backend)
-    -- When enabled, review files are prefixed with status (action-required_, waiting-review_, resolved_)
-    status_management = false,
   },
   -- Notify through vim.notify when synchronization loads external comments.
   -- Notification UIs such as fidget.nvim can display these automatically.
@@ -296,8 +289,6 @@ end
 | `:CommentaryDeleteComment`   | `<leader>rd`   | Delete comment at cursor position                           |
 | `:CommentaryEditComment`     | `<leader>re`   | Edit comment at cursor position                             |
 | `:CommentaryReply`           | `<leader>rr`   | Reply to the comment at the cursor                          |
-| `:CommentaryResolve`         | `<leader>ro`   | Mark the current thread as resolved                         |
-| `:CommentarySetStatus`       | -              | Set the overall review status                               |
 | `:CommentaryPreviousComment` | `[r`            | Jump to the previous attached comment in the current buffer |
 | `:CommentaryNextComment`     | `]r`            | Jump to the next attached comment in the current buffer     |
 
@@ -335,7 +326,7 @@ into the comment input window. If a thread contains multiple comments, select
 the root comment or reply to edit from the picker.
 
 In the comment view opened by `<leader>rs`, `j` and `k` move by wrapped screen
-lines. The configured edit, delete, reply, and resolve mappings act on the
+lines. The configured edit, delete, and reply mappings act on the
 specific thread comment under the cursor.
 
 You can also edit the full review from the preview buffer:
@@ -354,21 +345,6 @@ Comments automatically create discussion threads. You can:
 
 - **Reply to comments**: Use `<leader>rr` to reply to existing comments
 - **Create new threads**: Use `<leader>rc` to start a new thread on the same line
-- **Resolve threads**: Use `<leader>ro` to mark a thread as resolved
-- Thread status is displayed in the comment list:
-  - `[!]` Action Required - awaiting response from code author (Claude Code)
-  - `[⏳]` Waiting Review - awaiting reviewer response
-  - `[✓]` Resolved - discussion complete
-
-#### Automatic Status Management
-
-When using file storage backend, thread status is automatically managed based on the latest comment author:
-
-- Comments from `claude_code_author` (configurable) → `waiting-review`
-- Comments from other authors → `action-required`
-- Manual resolution → `resolved`
-
-This enables efficient workflow between AI assistants and human reviewers.
 
 ### Comment List Picker
 

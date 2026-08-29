@@ -133,29 +133,6 @@ add_signs = function(bufnr, comments)
   -- Remove existing signs first
   vim.fn.sign_unplace("CommentarySigns", { buffer = bufnr })
 
-  -- Define signs for each status (using same text but different colors)
-  vim.fn.sign_define("CommentaryWaitingReview", {
-    text = config.text,
-    texthl = "CommentaryWaitingReview",
-    linehl = config.linehl,
-    numhl = config.numhl,
-  })
-
-  vim.fn.sign_define("CommentaryActionRequired", {
-    text = config.text,
-    texthl = "CommentaryActionRequired",
-    linehl = config.linehl,
-    numhl = config.numhl,
-  })
-
-  vim.fn.sign_define("CommentaryResolved", {
-    text = config.text,
-    texthl = "CommentaryResolved",
-    linehl = config.linehl,
-    numhl = config.numhl,
-  })
-
-  -- Default sign for unknown status
   vim.fn.sign_define("CommentaryComment", {
     text = config.text,
     texthl = config.texthl,
@@ -163,44 +140,15 @@ add_signs = function(bufnr, comments)
     numhl = config.numhl,
   })
 
-  -- Group comments by line to determine thread status
-  local status_by_line = {}
+  local lines = {}
   for _, comment in ipairs(comments) do
     for line = comment.line_start, comment.line_end do
-      -- Determine status based on thread_status or thread info
-      local status = comment.thread_status or "open"
-
-      -- If resolved thread, mark as resolved
-      if comment.thread_id then
-        local sign_state = require("commentary.state")
-        local thread_data = sign_state.get_all_threads()[comment.thread_id]
-        if thread_data and thread_data.status == "resolved" then
-          status = "resolved"
-        end
-      end
-      -- Priority: resolved < action-required < waiting-review
-      if not status_by_line[line] then
-        status_by_line[line] = status
-      elseif status == "waiting-review" then
-        status_by_line[line] = status
-      elseif status == "action-required" and status_by_line[line] ~= "waiting-review" then
-        status_by_line[line] = status
-      end
+      lines[line] = true
     end
   end
 
-  -- Place signs based on status
-  for line, status in pairs(status_by_line) do
-    local sign_name = "CommentaryComment"
-    if status == "waiting-review" then
-      sign_name = "CommentaryWaitingReview"
-    elseif status == "action-required" then
-      sign_name = "CommentaryActionRequired"
-    elseif status == "resolved" then
-      sign_name = "CommentaryResolved"
-    end
-
-    vim.fn.sign_place(0, "CommentarySigns", sign_name, bufnr, { lnum = line, priority = 100 })
+  for line in pairs(lines) do
+    vim.fn.sign_place(0, "CommentarySigns", "CommentaryComment", bufnr, { lnum = line, priority = 100 })
   end
 end
 
@@ -232,64 +180,31 @@ add_virtual_text = function(bufnr, comments)
     local thread_count = vim.tbl_count(line_threads)
     local text = ""
     local highlight = config.hl
-    local show_virt_text = true
 
     if thread_count > 1 then
       -- Multiple threads on same line
       text = config.prefix .. string.format("(%d threads)", thread_count)
     else
       -- Single thread - find the latest comment
-      local thread_id, thread_comments = next(line_threads)
+      local _, thread_comments = next(line_threads)
+      local latest_comment = thread_comments[#thread_comments]
 
-      -- Determine thread status
-      local status = "open"
-      if thread_comments[1].thread_status then
-        status = thread_comments[1].thread_status
+      if thread_comments[1].timestamp then
+        table.sort(thread_comments, function(a, b)
+          return (a.timestamp or 0) < (b.timestamp or 0)
+        end)
+        latest_comment = thread_comments[#thread_comments]
       end
 
-      -- Check if thread is resolved
-      local comment_state = require("commentary.state")
-      local thread_data = comment_state.get_all_threads()[thread_id]
-      if thread_data and thread_data.status == "resolved" then
-        status = "resolved"
-        show_virt_text = false -- Don't show virtual text for resolved
+      local first_line = latest_comment.comment:match("^[^\n]*") or latest_comment.comment
+      if #first_line > 40 then
+        first_line = first_line:sub(1, 37) .. "..."
       end
-
-      if show_virt_text then
-        -- Find the latest comment (last in thread)
-        local latest_comment = thread_comments[#thread_comments]
-
-        -- If no timestamp, assume comments are in chronological order
-        if thread_comments[1].timestamp then
-          -- Sort by timestamp to find the latest
-          table.sort(thread_comments, function(a, b)
-            return (a.timestamp or 0) < (b.timestamp or 0)
-          end)
-          latest_comment = thread_comments[#thread_comments]
-        end
-
-        -- Set prefix based on status
-        local prefix = config.prefix
-        if status == "waiting-review" then
-          prefix = "󰇮 " -- Mail icon for waiting review (Nerd Font)
-          highlight = "CommentaryWaitingReview"
-        elseif status == "action-required" then
-          prefix = "○ "
-          highlight = "CommentaryActionRequired"
-        end
-
-        local first_line = latest_comment.comment:match("^[^\n]*") or latest_comment.comment
-
-        -- Truncate if too long
-        if #first_line > 40 then
-          first_line = first_line:sub(1, 37) .. "..."
-        end
-        text = prefix .. first_line
-      end
+      text = config.prefix .. first_line
     end
 
     -- Ensure buffer is loaded and line is valid
-    if show_virt_text and text ~= "" and vim.api.nvim_buf_is_loaded(bufnr) then
+    if text ~= "" and vim.api.nvim_buf_is_loaded(bufnr) then
       local line_count = vim.api.nvim_buf_line_count(bufnr)
       if line <= line_count then
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_virtual_text, line - 1, 0, {

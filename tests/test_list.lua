@@ -50,7 +50,6 @@ T["file-backed replies contribute to thread count and preview"] = function()
   local lines = preview.format_thread({
     id = root.thread_id,
     data = parsed_thread,
-    status = "open",
   })
   local content = table.concat(lines, "\n")
   MiniTest.expect.match(content, "%*%*Comments%*%*: 3")
@@ -71,7 +70,6 @@ T["Telescope renders thread rows as file, line, and text"] = function()
       },
       replies = { { comment = "Reply" } },
     },
-    status = "open",
   }
 
   MiniTest.expect.equality(

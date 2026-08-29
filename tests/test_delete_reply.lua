@@ -14,7 +14,6 @@ local T = MiniTest.new_set({
             backend = "file",
             file = { dir = test_dir },
           },
-          status_management = false,
         },
       })
       state._reset()
@@ -104,6 +103,37 @@ T["file storage deletes replies by rewriting their thread"] = function()
 
   MiniTest.expect.equality(storage.delete(comments[1].id), true)
   MiniTest.expect.equality(vim.fn.filereadable(test_dir .. "/root.md"), 0)
+end
+
+T["file storage keeps a thread in one stable file"] = function()
+  local storage = require("commentary.storage.file")
+  storage.init()
+
+  local root = {
+    id = "root",
+    thread_id = "root_thread",
+    file = "lua/example.lua",
+    line_start = 12,
+    line_end = 12,
+    author = "Reviewer",
+    timestamp = 1000,
+    comment = "Root comment",
+    context_lines = {},
+  }
+  MiniTest.expect.equality(storage.add(root), "root")
+
+  local reply = vim.tbl_extend("force", vim.deepcopy(root), {
+    id = "reply",
+    parent_id = root.id,
+    author = "Author",
+    timestamp = 1001,
+    comment = "Reply",
+  })
+  MiniTest.expect.equality(storage.add(reply), "reply")
+
+  MiniTest.expect.equality(vim.fn.glob(test_dir .. "/*.md", false, true), { test_dir .. "/root.md" })
+  storage.reload()
+  MiniTest.expect.equality(#storage.get_all(), 2)
 end
 
 return T

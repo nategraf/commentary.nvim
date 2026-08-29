@@ -76,10 +76,6 @@ T["comment view actions target the threaded comment under the cursor"] = functio
       method = "reply_to_comment",
       desc = "Reply to displayed review comment",
     },
-    {
-      method = "resolve_comment_thread",
-      desc = "Resolve displayed review thread",
-    },
   }
 
   for _, action in ipairs(actions) do

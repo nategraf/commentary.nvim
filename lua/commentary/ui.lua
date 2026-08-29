@@ -46,10 +46,6 @@ local function setup_comment_actions(buf, win, comment_by_line)
       method = "reply_to_comment",
       desc = "Reply to displayed review comment",
     },
-    resolve_thread = {
-      method = "resolve_comment_thread",
-      desc = "Resolve displayed review thread",
-    },
   }
 
   for action, action_config in pairs(actions) do

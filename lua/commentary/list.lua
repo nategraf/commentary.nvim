@@ -106,9 +106,6 @@ function M.list_with_quickfix()
   local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
 
-  -- Get thread statuses from storage
-  local all_threads = state.get_all_threads()
-
   -- Sort threads by file and line
   local sorted_threads = {}
   for _, thread_data in pairs(threads) do
@@ -126,31 +123,9 @@ function M.list_with_quickfix()
   -- Convert to quickfix items with thread grouping
   local qf_items = {}
   for _, thread_data in ipairs(sorted_threads) do
-    local thread_info = all_threads[thread_data.id]
-    local status_indicator = ""
-
-    if thread_info then
-      if thread_info.status == "resolved" then
-        status_indicator = "[✓] "
-      elseif thread_data.root_comment.thread_status == "waiting-review" then
-        status_indicator = "[󰇮] " -- Mail icon, match virtual text
-      elseif thread_data.root_comment.thread_status == "action-required" then
-        status_indicator = "[○] " -- Match virtual text
-      else
-        status_indicator = "[•] "
-      end
-    else
-      -- Check thread_status from comment
-      if thread_data.root_comment.thread_status == "waiting-review" then
-        status_indicator = "[󰇮] " -- Mail icon, match virtual text
-      elseif thread_data.root_comment.thread_status == "action-required" then
-        status_indicator = "[○] " -- Match virtual text
-      end
-    end
-
     -- Add root comment with thread indicator
     local root_item = comment_to_qf_item(thread_data.root_comment)
-    root_item.text = status_indicator .. "THREAD: " .. root_item.text
+    root_item.text = "THREAD: " .. root_item.text
     table.insert(qf_items, root_item)
 
     -- Add replies in linear order
@@ -478,29 +453,14 @@ function M.list_threads_with_quickfix()
   local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
 
-  -- Get thread statuses
-  local all_threads = state.get_all_threads()
-
   -- Convert threads to quickfix items
   local qf_items = {}
-  for thread_id, thread_data in pairs(threads) do
+  for _, thread_data in pairs(threads) do
     local root_comment = thread_data.root_comment
-    local thread_status = all_threads[thread_id] and all_threads[thread_id].status or "open"
-
-    -- Get status icon (match virtual text)
-    local status_icon = ""
-    if root_comment.thread_status == "action-required" then
-      status_icon = "[○] " -- Match virtual text
-    elseif root_comment.thread_status == "waiting-review" then
-      status_icon = "[󰇮] " -- Mail icon, match virtual text
-    elseif thread_status == "resolved" then
-      status_icon = "[✓] "
-    end
 
     -- Create preview text with thread info
     local text = string.format(
-      "%s%s%s (%d comments)",
-      status_icon,
+      "%s%s (%d comments)",
       anchor_label(root_comment),
       root_comment.comment:match("^[^\n]*") or root_comment.comment,
       #thread_data.replies + 1
@@ -555,7 +515,6 @@ function M.list_threads_with_fzf_lua()
   -- Build thread tree
   local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
-  local all_threads = state.get_all_threads()
 
   -- Convert to sorted list
   local thread_list = {}
@@ -563,7 +522,6 @@ function M.list_threads_with_fzf_lua()
     table.insert(thread_list, {
       id = thread_id,
       data = thread_data,
-      status = all_threads[thread_id] and all_threads[thread_id].status or "open",
     })
   end
 
@@ -582,16 +540,6 @@ function M.list_threads_with_fzf_lua()
   for _, thread_info in ipairs(thread_list) do
     local root_comment = thread_info.data.root_comment
 
-    -- Get status icon (match virtual text)
-    local status_icon = ""
-    if root_comment.thread_status == "action-required" then
-      status_icon = "○ " -- Match virtual text
-    elseif root_comment.thread_status == "waiting-review" then
-      status_icon = "󰇮 " -- Mail icon, match virtual text
-    elseif thread_info.status == "resolved" then
-      status_icon = "✓ "
-    end
-
     local line_info = root_comment.line_start == root_comment.line_end and tostring(root_comment.line_start)
       or string.format("%d-%d", root_comment.line_start, root_comment.line_end)
 
@@ -601,10 +549,9 @@ function M.list_threads_with_fzf_lua()
     end
 
     local entry = string.format(
-      "%s:%s: %s%s%s (%d comments)",
+      "%s:%s: %s%s (%d comments)",
       root_comment.file,
       line_info,
-      status_icon,
       anchor_label(root_comment),
       preview_text,
       #thread_info.data.replies + 1
@@ -782,7 +729,6 @@ function M.list_threads_with_telescope()
   -- Build thread tree
   local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
-  local all_threads = state.get_all_threads()
 
   -- Convert to sorted list
   local thread_list = {}
@@ -790,7 +736,6 @@ function M.list_threads_with_telescope()
     table.insert(thread_list, {
       id = thread_id,
       data = thread_data,
-      status = all_threads[thread_id] and all_threads[thread_id].status or "open",
     })
   end
 

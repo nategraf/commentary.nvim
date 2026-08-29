@@ -1,10 +1,3 @@
----@class CommentaryThread
----@field id string Thread ID
----@field root_comment_id string ID of the root comment
----@field status string Thread status: 'open', 'resolved', 'outdated'
----@field resolved_by string|nil User who resolved the thread
----@field resolved_at number|nil Timestamp when resolved
-
 ---@class CommentaryComment
 ---@field id string Comment ID
 ---@field thread_id string Thread this comment belongs to
@@ -19,21 +12,6 @@
 ---@field replies table List of reply comment IDs
 
 local M = {}
-
---- Create a new thread
----@param root_comment table The root comment data
----@return table thread
-function M.create_thread(root_comment)
-  local thread_id = root_comment.id .. "_thread"
-
-  return {
-    id = thread_id,
-    root_comment_id = root_comment.id,
-    status = "open",
-    resolved_by = nil,
-    resolved_at = nil,
-  }
-end
 
 --- Create a reply to a comment
 ---@param parent_comment table The parent comment
@@ -80,7 +58,6 @@ function M.build_thread_tree(comments)
         id = thread_id,
         root_comment = comment,
         replies = {}, -- Linear list of replies
-        status = "open",
       }
     end
   end

@@ -15,7 +15,6 @@ local function comment_fingerprint(comment)
     comment = comment.comment,
     thread_id = comment.thread_id,
     parent_id = comment.parent_id,
-    thread_status = comment.thread_status,
     anchor = comment.anchor,
   })
 end
@@ -196,7 +195,6 @@ function M.add_comment(comment_data)
     local comment = storage_backend.get(id)
     if comment then
       comment.thread_id = thread_id
-      -- Status is now managed by filename (if status_management is enabled), not in data
 
       -- Re-save with thread info
       storage_backend.delete(id)
@@ -352,59 +350,6 @@ function M.get_thread_comments(thread_id)
   local all_comments = M.get_comments()
   local thread = require("commentary.thread")
   return thread.get_thread_comments(thread_id, all_comments)
-end
-
---- Resolve a thread
----@param thread_id string Thread ID
----@return boolean success
-function M.resolve_thread(thread_id)
-  local storage_backend = get_storage()
-  local resolved_by = vim.fn.expand("$USER")
-  local success = storage_backend.update_thread_status(thread_id, "resolved", resolved_by)
-
-  if success then
-    finish_change("editor")
-    vim.notify("Thread resolved", vim.log.levels.INFO)
-  else
-    -- Check if status management is disabled
-    local config = require("commentary.config")
-    if config.get("comment.storage.backend") == "file" and not config.get("comment.status_management") then
-      vim.notify("Status management is disabled. Enable 'status_management' to resolve threads.", vim.log.levels.WARN)
-    end
-  end
-
-  return success
-end
-
---- Reopen a thread
----@param thread_id string Thread ID
----@return boolean success
-function M.reopen_thread(thread_id)
-  local storage_backend = get_storage()
-  local success = storage_backend.update_thread_status(thread_id, "open", nil)
-
-  if success then
-    finish_change("editor")
-    vim.notify("Thread reopened", vim.log.levels.INFO)
-  else
-    -- Check if status management is disabled
-    local config = require("commentary.config")
-    if config.get("comment.storage.backend") == "file" and not config.get("comment.status_management") then
-      vim.notify("Status management is disabled. Enable 'status_management' to reopen threads.", vim.log.levels.WARN)
-    end
-  end
-
-  return success
-end
-
---- Get all thread statuses
----@return table<string, table>
-function M.get_all_threads()
-  local storage_backend = get_storage()
-  if storage_backend.get_all_threads then
-    return storage_backend.get_all_threads()
-  end
-  return {}
 end
 
 --- Get storage backend (for internal use)

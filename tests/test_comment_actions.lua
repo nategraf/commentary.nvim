@@ -65,7 +65,7 @@ T["explicit delete confirms and removes a reply"] = function()
   MiniTest.expect.equality(state.get_comment(reply.id), nil)
 end
 
-T["explicit reply and resolve act on the selected thread"] = function()
+T["explicit reply acts on the selected thread"] = function()
   local root, reply = add_thread()
   ui.show_comment_input = function(callback)
     callback("Follow-up reply")
@@ -75,9 +75,6 @@ T["explicit reply and resolve act on the selected thread"] = function()
   local comments = state.get_thread_comments(root.thread_id)
   MiniTest.expect.equality(#comments, 3)
   MiniTest.expect.equality(comments[3].comment, "Follow-up reply")
-
-  MiniTest.expect.equality(review.resolve_comment_thread(reply), true)
-  MiniTest.expect.equality(state.get_all_threads()[root.thread_id].status, "resolved")
 end
 
 return T

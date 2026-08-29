@@ -73,15 +73,6 @@ local defaults = {
     },
     -- Automatically copy each new comment to clipboard when added
     auto_copy_on_add = false,
-    -- Author name used by Claude Code (for automatic status management)
-    -- Comments from this author trigger "waiting-review" status
-    -- Comments from other authors trigger "action-required" status
-    claude_code_author = "Claude Code",
-    -- Enable filename-based status management (only works with file storage backend)
-    -- When enabled, review files are prefixed with status (action-required_, waiting-review_, resolved_)
-    -- TODO: Decide whether to rework status management around explicit comment
-    -- origins/authors and well-defined transitions, or remove the feature.
-    status_management = false,
   },
   -- Notifications emitted when synchronization loads external comments.
   notifications = {
@@ -139,11 +130,6 @@ local defaults = {
     reply_comment = {
       mode = "n",
       key = "<leader>rr",
-    },
-    -- Resolve thread at cursor
-    resolve_thread = {
-      mode = "n",
-      key = "<leader>ro",
     },
     -- Navigate attached comments in the current buffer
     previous_comment = {

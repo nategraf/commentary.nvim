@@ -14,7 +14,7 @@ local function enable_wrapping(previewer)
 end
 
 --- Format a thread for picker previews.
----@param thread_info table Thread list entry with data and status fields
+---@param thread_info table Thread list entry
 ---@return string[] lines
 function M.format_thread(thread_info)
   local root = thread_info.data.root_comment
@@ -24,7 +24,6 @@ function M.format_thread(thread_info)
   local lines = {
     "# Thread Overview",
     "",
-    string.format("**Status**: %s", thread_info.status),
     string.format("**File**: %s", root.file),
     string.format("**Line**: %d", root.line_start),
     string.format("**Comments**: %d", #comments),
