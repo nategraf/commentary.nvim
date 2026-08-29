@@ -175,7 +175,6 @@ function M.parse_markdown(content)
 
     -- Skip empty lines and header
     if line:match("^#%s+Code Review") or line:match("^%*%*Date%*%*:") or line:match("^%*%*Total Comments%*%*:") then
-      i = i + 1
       goto continue
     end
 
@@ -188,7 +187,6 @@ function M.parse_markdown(content)
 
       local file = line:match("^##%s+(.+)")
       current_comment = { file = file }
-      i = i + 1
       goto continue
     end
 
@@ -220,14 +218,12 @@ function M.parse_markdown(content)
           }
         end
       end
-      i = i + 1
       goto continue
     end
 
-    -- Code block markers
-    if line == "```" then
+    -- Context fences may include a Markdown info string such as ```lua.
+    if line:match("^```[^`]*$") then
       in_code_block = not in_code_block
-      i = i + 1
       goto continue
     end
 
@@ -238,13 +234,11 @@ function M.parse_markdown(content)
       if num and code then
         table.insert(current_comment.context_lines, code)
       end
-      i = i + 1
       goto continue
     end
 
     -- Skip Time line
     if line:match("^%*%*Time%*%*:") then
-      i = i + 1
       goto continue
     end
 

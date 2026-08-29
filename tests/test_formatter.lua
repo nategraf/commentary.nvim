@@ -83,9 +83,8 @@ This needs refactoring]]
   MiniTest.expect.equality(comment.file, "src/main.lua")
   MiniTest.expect.equality(comment.line_start, 10)
   MiniTest.expect.equality(comment.line_end, 10)
-  -- TODO: Fix parser to handle ```lua code blocks correctly
-  -- For now, just check that the comment contains the expected text
-  MiniTest.expect.match(comment.comment, "10: local function foo")
+  MiniTest.expect.equality(comment.context_lines, { "local function foo()" })
+  MiniTest.expect.equality(comment.comment, "This needs refactoring")
 end
 
 T["format minimal single line"] = function()
