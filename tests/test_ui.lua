@@ -59,6 +59,80 @@ T["comment views navigate by wrapped screen lines"] = function()
   vim.api.nvim_win_close(win, true)
 end
 
+T["comment input supports write and write-quit"] = function()
+  local saved = {}
+  ui.show_comment_input(function(text)
+    table.insert(saved, text)
+    return true
+  end, nil, nil, "First draft")
+  vim.cmd("stopinsert")
+
+  local win = vim.api.nvim_get_current_win()
+  local buf = vim.api.nvim_get_current_buf()
+  MiniTest.expect.equality(vim.bo[buf].buftype, "acwrite")
+
+  vim.cmd("write")
+  MiniTest.expect.equality(saved, { "First draft" })
+  MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), true)
+  MiniTest.expect.equality(vim.bo[buf].modified, false)
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Second draft" })
+  vim.cmd("wq")
+  MiniTest.expect.equality(saved, { "First draft", "Second draft" })
+  MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), false)
+end
+
+T["comment input allows quit to discard changes"] = function()
+  local saved = false
+  ui.show_comment_input(function()
+    saved = true
+    return true
+  end, nil, nil, "Draft")
+  vim.cmd("stopinsert")
+
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { "Discarded draft" })
+  vim.cmd("q")
+
+  MiniTest.expect.equality(saved, false)
+  MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), false)
+end
+
+T["comment input file navigation returns focus to the float"] = function()
+  local path = vim.fn.tempname()
+  vim.fn.writefile({ "target" }, path)
+  local swapfile = vim.o.swapfile
+  vim.o.swapfile = false
+
+  ui.show_comment_input(function()
+    return true
+  end, nil, nil, path)
+  vim.cmd("stopinsert")
+
+  local comment_win = vim.api.nvim_get_current_win()
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_win_set_cursor(comment_win, { 1, 0 })
+
+  for _, lhs in ipairs({ "gf", "<C-W>f" }) do
+    local mapping = buffer_mapping(buf, lhs)
+    MiniTest.expect.equality(mapping ~= nil, true)
+    mapping.callback()
+
+    local file_win = vim.api.nvim_get_current_win()
+    MiniTest.expect.equality(file_win ~= comment_win, true)
+    MiniTest.expect.equality(vim.api.nvim_buf_get_name(0), path)
+    vim.api.nvim_win_close(file_win, true)
+    vim.wait(100, function()
+      return vim.api.nvim_get_current_win() == comment_win
+    end)
+    MiniTest.expect.equality(vim.api.nvim_get_current_win(), comment_win)
+  end
+
+  vim.api.nvim_win_close(comment_win, true)
+  vim.o.swapfile = swapfile
+  vim.fn.delete(path)
+end
+
 T["comment view actions target the threaded comment under the cursor"] = function()
   local review = require("commentary")
   local root = comment("root", "Root comment", 1)

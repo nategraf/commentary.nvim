@@ -411,11 +411,17 @@ end
 --- Reply to a specific comment's thread
 ---@param comment_data table Comment to reply to
 function M.reply_to_comment(comment_data)
+  local reply_id
   ui.show_comment_input(function(reply_text)
     if reply_text and reply_text ~= "" then
-      state.add_reply(comment_data.id, reply_text)
+      if reply_id then
+        return state.update_comment(reply_id, { comment = reply_text })
+      end
+      reply_id = state.add_reply(comment_data.id, reply_text)
       vim.notify("Reply added", vim.log.levels.INFO)
+      return reply_id ~= nil
     end
+    return false
   end, {
     file = comment_data.file,
     line_start = comment_data.line_start,
@@ -521,20 +527,23 @@ end
 local function show_comment_editor(comment_data)
   ui.show_comment_input(function(updated_text)
     if updated_text == nil then
-      return
+      return false
     end
     if vim.trim(updated_text) == "" then
       vim.notify("Comment cannot be empty; use delete to remove it", vim.log.levels.WARN)
-      return
+      return false
     end
     if updated_text == comment_data.comment then
-      return
+      return true
     end
 
     if state.update_comment(comment_data.id, { comment = updated_text }) then
       vim.notify("Comment updated")
+      comment_data.comment = updated_text
+      return true
     else
       vim.notify("Failed to update comment", vim.log.levels.ERROR)
+      return false
     end
   end, {
     file = comment_data.file,
@@ -635,6 +644,11 @@ function M.get_input_buffer_functions(bufnr)
       -- Trigger submit action for this buffer
       if vim.b[bufnr]._commentary_submit then
         vim.b[bufnr]._commentary_submit()
+      end
+    end,
+    save = function()
+      if vim.b[bufnr]._commentary_save then
+        vim.b[bufnr]._commentary_save()
       end
     end,
     cancel = function()

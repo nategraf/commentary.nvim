@@ -26,13 +26,19 @@ function M.add(context_lines)
     vim.api.nvim_buf_add_highlight(bufnr, ns_context, "Visual", line, 0, -1)
   end
 
+  local saved_id
+
   -- Show input UI and get comment text
   ui.show_comment_input(function(comment_text)
     -- Clear highlights when done
     vim.api.nvim_buf_clear_namespace(bufnr, ns_context, 0, -1)
 
     if not comment_text or comment_text == "" then
-      return
+      return false
+    end
+
+    if saved_id then
+      return state.update_comment(saved_id, { comment = comment_text })
     end
 
     -- Always create a new comment (new thread)
@@ -46,7 +52,7 @@ function M.add(context_lines)
     }
 
     -- Add to state (state will handle UI refresh)
-    state.add_comment(comment_data)
+    saved_id = state.add_comment(comment_data)
 
     -- Copy to clipboard if enabled
     local config = require("commentary.config")
@@ -64,6 +70,7 @@ function M.add(context_lines)
         context.line_start ~= context.line_end and "-" .. context.line_end or ""
       )
     )
+    return saved_id ~= nil
   end, context)
 end
 

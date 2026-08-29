@@ -77,4 +77,17 @@ T["explicit reply acts on the selected thread"] = function()
   MiniTest.expect.equality(comments[3].comment, "Follow-up reply")
 end
 
+T["repeated saves update one reply"] = function()
+  local root = add_thread()
+  ui.show_comment_input = function(callback)
+    MiniTest.expect.equality(callback("First saved reply"), true)
+    MiniTest.expect.equality(callback("Revised saved reply"), true)
+  end
+
+  review.reply_to_comment(root)
+  local comments = state.get_thread_comments(root.thread_id)
+  MiniTest.expect.equality(#comments, 3)
+  MiniTest.expect.equality(comments[3].comment, "Revised saved reply")
+end
+
 return T

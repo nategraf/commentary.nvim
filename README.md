@@ -245,6 +245,11 @@ vim.api.nvim_create_autocmd('User', {
 })
 ```
 
+Comment input buffers also support normal write commands: `:w` saves without
+closing, `:wq` saves and closes, and `:q` discards unsaved changes. `gf` and
+`<C-w>f` open the file under the cursor in a split; closing that split returns
+focus to the comment window.
+
 ### Available User Events
 
 - `CommentaryInputEnter` - Fired when comment input window opens

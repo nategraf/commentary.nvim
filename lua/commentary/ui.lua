@@ -189,6 +189,7 @@ function M.show_comment_input(callback, context, title, initial_text)
   -- Create buffer
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(buf, "buftype", "acwrite")
   vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
   -- Enable word wrap
   vim.api.nvim_buf_set_option(buf, "wrap", true)
@@ -201,6 +202,7 @@ function M.show_comment_input(callback, context, title, initial_text)
     local initial_lines = vim.split(initial_text, "\n", { plain = true })
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, initial_lines)
   end
+  vim.api.nvim_buf_set_option(buf, "modified", false)
 
   -- Variables to track window and dynamic height
   local win
@@ -262,15 +264,36 @@ function M.show_comment_input(callback, context, title, initial_text)
   end
 
   -- Setup keymaps
-  local function close_with_text()
+  local saved_text
+
+  local function save_text()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local text = table.concat(lines, "\n")
+    if text == saved_text then
+      vim.api.nvim_buf_set_option(buf, "modified", false)
+      return true
+    end
+
+    local ok, result = pcall(callback, text)
+    if not ok or result == false then
+      local message = ok and "Failed to save review comment" or tostring(result)
+      vim.notify(message, vim.log.levels.ERROR)
+      return false
+    end
+
+    saved_text = text
+    vim.api.nvim_buf_set_option(buf, "modified", false)
+    return true
+  end
+
+  local function close_with_text()
     -- Leave insert mode before closing
     if vim.fn.mode() == "i" then
       vim.cmd("stopinsert")
     end
-    vim.api.nvim_win_close(win, true)
-    callback(text)
+    if save_text() then
+      vim.api.nvim_win_close(win, true)
+    end
   end
 
   local function close_cancelled()
@@ -302,6 +325,62 @@ function M.show_comment_input(callback, context, title, initial_text)
   vim.api.nvim_buf_set_keymap(buf, "i", "<C-CR>", "", {
     noremap = true,
     callback = close_with_text,
+  })
+
+  vim.api.nvim_create_autocmd("BufWriteCmd", {
+    buffer = buf,
+    callback = function()
+      if not save_text() then
+        error("Failed to save review comment")
+      end
+    end,
+  })
+
+  -- A plain :q intentionally discards an unsaved draft. :wq runs the write
+  -- handler first, so it still persists the comment before this clears the
+  -- modified flag.
+  vim.api.nvim_create_autocmd("QuitPre", {
+    buffer = buf,
+    callback = function()
+      if vim.api.nvim_buf_is_valid(buf) then
+        vim.api.nvim_buf_set_option(buf, "modified", false)
+      end
+    end,
+  })
+
+  local function open_file_in_split()
+    local comment_win = win
+    local opened, err = pcall(vim.cmd, "wincmd f")
+    if not opened then
+      vim.notify(tostring(err), vim.log.levels.ERROR)
+      return
+    end
+
+    local file_win = vim.api.nvim_get_current_win()
+    if file_win == comment_win then
+      return
+    end
+
+    vim.api.nvim_create_autocmd("WinClosed", {
+      pattern = tostring(file_win),
+      once = true,
+      callback = function()
+        vim.schedule(function()
+          if vim.api.nvim_win_is_valid(comment_win) then
+            vim.api.nvim_set_current_win(comment_win)
+          end
+        end)
+      end,
+    })
+  end
+
+  vim.keymap.set("n", "gf", open_file_in_split, {
+    buffer = buf,
+    desc = "Open file under cursor in a split",
+  })
+  vim.keymap.set("n", "<C-w>f", open_file_in_split, {
+    buffer = buf,
+    desc = "Open file under cursor in a split",
   })
 
   -- Function to adjust window height based on content
@@ -363,6 +442,7 @@ function M.show_comment_input(callback, context, title, initial_text)
 
   -- Store callback functions for external access
   vim.b[buf]._commentary_submit = close_with_text
+  vim.b[buf]._commentary_save = save_text
   vim.b[buf]._commentary_cancel = close_cancelled
 
   -- Trigger User event after everything is set up
