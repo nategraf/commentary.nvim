@@ -1,5 +1,54 @@
 local M = {}
 
+local function path_contains_symlink(path)
+  local current = path
+  while current do
+    local stat = vim.uv.fs_lstat(current)
+    if stat and stat.type == "link" then
+      return true
+    end
+
+    local parent = vim.fs.dirname(current)
+    if not parent or parent == current then
+      break
+    end
+    current = parent
+  end
+  return false
+end
+
+--- Find the root of the Git repository containing a path.
+--- Both normal repositories (.git directory) and worktrees (.git file) are
+--- supported. Symlinks in the path and symlinked .git markers are ignored.
+---@param path string Path from which to search upward
+---@return string? root
+function M.find_git_root(path)
+  local absolute_path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
+  local path_stat = vim.uv.fs_lstat(absolute_path)
+  local directory = path_stat and path_stat.type == "directory" and absolute_path
+    or vim.fs.dirname(absolute_path)
+
+  if not directory or path_contains_symlink(directory) then
+    return nil
+  end
+
+  local current = directory
+  while current do
+    local marker_stat = vim.uv.fs_lstat(vim.fs.joinpath(current, ".git"))
+    if marker_stat and (marker_stat.type == "directory" or marker_stat.type == "file") then
+      return current
+    end
+
+    local parent = vim.fs.dirname(current)
+    if not parent or parent == current then
+      break
+    end
+    current = parent
+  end
+
+  return nil
+end
+
 --- Normalize path to the most appropriate relative or absolute form
 --- Based on the context.lua implementation
 ---@param path string Path to normalize
@@ -9,13 +58,8 @@ function M.normalize_path(path)
   local absolute_path = vim.fn.fnamemodify(path, ":p")
 
   -- Try git root
-  local search_dir = vim.fn.fnamemodify(absolute_path, ":h")
-  local git_file = vim.fn.findfile(".git", search_dir .. ";")
-  local git_dir = vim.fn.finddir(".git", search_dir .. ";")
-  local git_path = git_file ~= "" and git_file or git_dir
-
-  if git_path ~= "" then
-    local git_root = vim.fn.fnamemodify(git_path, ":h")
+  local git_root = M.find_git_root(absolute_path)
+  if git_root then
     if vim.startswith(absolute_path, git_root) then
       local relative = absolute_path:sub(#git_root + 1)
       if relative:sub(1, 1) == "/" then
@@ -169,14 +213,7 @@ end
 --- Get project root (git root or cwd)
 ---@return string
 function M.get_project_root()
-  -- Try to find git root
-  local git_root = vim.fn.finddir(".git", vim.fn.getcwd() .. ";")
-  if git_root ~= "" then
-    return vim.fn.fnamemodify(git_root, ":h")
-  end
-
-  -- Fallback to current directory
-  return vim.fn.getcwd()
+  return M.find_git_root(vim.fn.getcwd()) or vim.fn.getcwd()
 end
 
 --- Generate a unique filename for auto-save

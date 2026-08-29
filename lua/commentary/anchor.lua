@@ -1,4 +1,5 @@
 local M = {}
+local utils = require("commentary.utils")
 
 local ns = vim.api.nvim_create_namespace("CommentaryAnchors")
 local live = {}
@@ -29,8 +30,7 @@ local function git_root(path)
   if root_cache[directory] ~= nil then
     return root_cache[directory] or nil
   end
-  local output = run_git(directory, { "rev-parse", "--show-toplevel" })
-  local root = output and vim.trim(output) or nil
+  local root = utils.find_git_root(directory)
   root_cache[directory] = root or false
   return root
 end
