@@ -76,13 +76,18 @@ local function anchor_label(comment)
   return ""
 end
 
+local function thread_count_label(thread_data)
+  local count = #(thread_data.replies or {}) + 1
+  return count > 1 and string.format(" (%d comments)", count) or ""
+end
+
 local function telescope_thread_entry_parts(thread_info)
   local root = thread_info.data.root_comment
   local filename = vim.fn.fnamemodify(root.file, ":~:.")
   local line = root.line_start == root.line_end and tostring(root.line_start)
     or string.format("%d-%d", root.line_start, root.line_end)
   local text = root.comment:match("^[^\n]*") or root.comment
-  return filename, line, anchor_label(root) .. text
+  return filename, line, anchor_label(root) .. text .. thread_count_label(thread_info.data)
 end
 
 local function format_telescope_thread_entry(thread_info)
@@ -528,10 +533,10 @@ function M.list_threads_with_quickfix(sort_mode)
 
     -- Create preview text with thread info
     local text = string.format(
-      "%s%s (%d comments)",
+      "%s%s%s",
       anchor_label(root_comment),
       root_comment.comment:match("^[^\n]*") or root_comment.comment,
-      #thread_data.replies + 1
+      thread_count_label(thread_data)
     )
 
     if #text > 80 then
@@ -597,12 +602,12 @@ function M.list_threads_with_fzf_lua(sort_mode)
     end
 
     local entry = string.format(
-      "%s:%s: %s%s (%d comments)",
+      "%s:%s: %s%s%s",
       root_comment.file,
       line_info,
       anchor_label(root_comment),
       preview_text,
-      #thread_info.data.replies + 1
+      thread_count_label(thread_info.data)
     )
 
     table.insert(entries, {

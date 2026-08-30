@@ -99,7 +99,7 @@ T["Telescope renders thread rows as file, line, and text"] = function()
 
   MiniTest.expect.equality(
     list._format_telescope_thread_entry(thread_info),
-    "lua/commentary/list.lua:12-14: Keep the picker concise"
+    "lua/commentary/list.lua:12-14: Keep the picker concise (2 comments)"
   )
 
   local display_items
@@ -115,13 +115,32 @@ T["Telescope renders thread rows as file, line, and text"] = function()
 
   MiniTest.expect.equality(
     make_display({ value = thread_info }),
-    "lua/commentary/list.lua:12-14: Keep the picker concise"
+    "lua/commentary/list.lua:12-14: Keep the picker concise (2 comments)"
   )
   MiniTest.expect.equality(display_items, {
     { "lua/commentary/list.lua:", "TelescopeResultsIdentifier" },
     { "12-14: ", "TelescopeResultsNumber" },
-    { "Keep the picker concise", "TelescopeResultsComment" },
+    { "Keep the picker concise (2 comments)", "TelescopeResultsComment" },
   })
+end
+
+T["Telescope omits the count for single-comment threads"] = function()
+  local thread_info = {
+    data = {
+      root_comment = {
+        file = "lua/commentary/list.lua",
+        line_start = 12,
+        line_end = 12,
+        comment = "A single comment",
+      },
+      replies = {},
+    },
+  }
+
+  MiniTest.expect.equality(
+    list._format_telescope_thread_entry(thread_info),
+    "lua/commentary/list.lua:12: A single comment"
+  )
 end
 
 T["Telescope previews wrap long comment lines"] = function()
