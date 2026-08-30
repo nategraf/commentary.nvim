@@ -135,6 +135,17 @@ local function jump_to_comment(comment)
   return true
 end
 
+local function open_thread(thread_data)
+  if not jump_to_comment(thread_data.root_comment) then
+    return false
+  end
+
+  local comments = { thread_data.root_comment }
+  vim.list_extend(comments, thread_data.replies or {})
+  require("commentary.ui").show_comment_list(comments)
+  return true
+end
+
 --- Convert comment to quickfix item
 ---@param comment table
 ---@return table
@@ -598,6 +609,7 @@ function M.list_threads_with_fzf_lua(sort_mode)
       display = entry,
       thread_id = thread_info.id,
       root_comment = root_comment,
+      thread_data = thread_info.data,
     })
   end
 
@@ -735,7 +747,7 @@ function M.list_threads_with_fzf_lua(sort_mode)
         local line = selected[1]
         for _, entry in ipairs(entries) do
           if entry.display == line then
-            jump_to_comment(entry.root_comment)
+            open_thread(entry.thread_data)
             break
           end
         end
@@ -806,10 +818,10 @@ function M.list_threads_with_telescope(sort_mode)
       },
       attach_mappings = function(prompt_bufnr, map)
         actions.select_default:replace(function()
-          actions.close(prompt_bufnr)
           local selection = action_state.get_selected_entry()
+          actions.close(prompt_bufnr)
           if selection then
-            jump_to_comment(selection.value.data.root_comment)
+            open_thread(selection.value.data)
           end
         end)
         return true
@@ -844,6 +856,7 @@ end
 
 M._comment_to_qf_item = comment_to_qf_item
 M._jump_to_comment = jump_to_comment
+M._open_thread = open_thread
 M._format_telescope_thread_entry = format_telescope_thread_entry
 M._make_telescope_thread_displayer = make_telescope_thread_displayer
 M._sort_thread_list = sort_thread_list

@@ -210,6 +210,54 @@ T["thread replies are chronological regardless of storage order"] = function()
   end, built[root.thread_id].replies), { "earlier", "latest" })
 end
 
+T["opening a picker thread jumps to its code and shows the comment view"] = function()
+  local path = vim.fn.tempname()
+  vim.fn.writefile({ "first", "second", "third" }, path)
+  local swapfile = vim.o.swapfile
+  vim.o.swapfile = false
+  local root = {
+    id = "root",
+    thread_id = "root_thread",
+    file = path,
+    line_start = 2,
+    line_end = 2,
+    comment = "Root",
+    timestamp = 1,
+    anchor_status = "attached",
+  }
+  local reply = vim.tbl_extend("force", vim.deepcopy(root), {
+    id = "reply",
+    parent_id = root.id,
+    comment = "Reply",
+    timestamp = 2,
+  })
+
+  local ui = require("commentary.ui")
+  local original_show_comment_list = ui.show_comment_list
+  local shown
+  ui.show_comment_list = function(comments)
+    shown = comments
+  end
+
+  local ok, opened = pcall(list._open_thread, {
+    root_comment = root,
+    replies = { reply },
+  })
+  ui.show_comment_list = original_show_comment_list
+
+  MiniTest.expect.equality(ok, true)
+  MiniTest.expect.equality(opened, true)
+  MiniTest.expect.equality(vim.api.nvim_buf_get_name(0), path)
+  MiniTest.expect.equality(vim.api.nvim_win_get_cursor(0)[1], 2)
+  MiniTest.expect.equality(vim.tbl_map(function(comment)
+    return comment.id
+  end, shown), { "root", "reply" })
+
+  vim.cmd("enew!")
+  vim.o.swapfile = swapfile
+  vim.fn.delete(path)
+end
+
 T["comment jump reports edit failures"] = function()
   local original_cmd = vim.cmd
   local original_notify = vim.notify
