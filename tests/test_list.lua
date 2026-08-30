@@ -58,6 +58,31 @@ T["file-backed replies contribute to thread count and preview"] = function()
   MiniTest.expect.match(content, "Second reply")
 end
 
+T["Telescope thread previews preserve consecutive blank lines"] = function()
+  local root = {
+    id = "review-blank-lines",
+    thread_id = "review-blank-lines_thread",
+    file = "example.lua",
+    line_start = 3,
+    line_end = 3,
+    comment = "First paragraph\n\n\nSecond paragraph",
+    author = "Reviewer",
+    timestamp = 1,
+  }
+
+  local lines = preview.format_thread({
+    id = root.thread_id,
+    data = { root_comment = root, replies = {} },
+  })
+  local first = vim.fn.index(lines, "First paragraph") + 1
+  MiniTest.expect.equality(vim.list_slice(lines, first, first + 3), {
+    "First paragraph",
+    "",
+    "",
+    "Second paragraph",
+  })
+end
+
 T["Telescope renders thread rows as file, line, and text"] = function()
   local thread_info = {
     data = {

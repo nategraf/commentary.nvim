@@ -145,10 +145,7 @@ function M.format_single(comment, opts)
   -- Comment content
   table.insert(lines, colors.section .. "### Comment" .. colors.reset)
   table.insert(lines, "")
-  -- Split comment by lines and add each line
-  for line in comment.comment:gmatch("[^\n]+") do
-    table.insert(lines, line)
-  end
+  vim.list_extend(lines, vim.split(comment.comment, "\n", { plain = true, trimempty = false }))
 
   return lines
 end
