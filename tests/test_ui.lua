@@ -214,10 +214,9 @@ T["closing a modified comment can discard or cancel"] = function()
   vim.api.nvim_win_close(win, true)
 end
 
-T["plain q is available and leader-q saves and closes"] = function()
-  local saved
+T["comment inputs do not override normal q bindings"] = function()
   ui.show_comment_input(function(text)
-    saved = text
+    MiniTest.expect.equality(text, nil)
     return true
   end, nil, nil, "Draft")
   vim.cmd("stopinsert")
@@ -225,29 +224,8 @@ T["plain q is available and leader-q saves and closes"] = function()
   local win = vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_get_current_buf()
   MiniTest.expect.equality(buffer_mapping(buf, "q"), nil)
-  local close_mapping = buffer_mapping_by_description(buf, "Save and close review comment")
-  MiniTest.expect.equality(close_mapping ~= nil, true)
-  close_mapping.callback()
-
-  MiniTest.expect.equality(saved, "Draft")
-  MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), false)
-end
-
-T["leader-q closes a blank new comment without saving"] = function()
-  local callback_count = 0
-  ui.show_comment_input(function(text)
-    callback_count = callback_count + 1
-    MiniTest.expect.equality(text, nil)
-    return false
-  end)
-  vim.cmd("stopinsert")
-
-  local win = vim.api.nvim_get_current_win()
-  local close_mapping = buffer_mapping_by_description(0, "Save and close review comment")
-  close_mapping.callback()
-
-  MiniTest.expect.equality(callback_count, 1)
-  MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), false)
+  MiniTest.expect.equality(buffer_mapping_by_description(buf, "Save and close review comment"), nil)
+  vim.api.nvim_win_close(win, true)
 end
 
 T["comment input and view file navigation return focus to the float"] = function()
