@@ -219,9 +219,8 @@ vim.api.nvim_create_autocmd('User', {
 
     -- Submit with C-CR in both insert and normal mode
     vim.keymap.set({'i', 'n'}, '<C-CR>', funcs.submit, { buffer = buf })
-    -- Cancel with Esc or q in normal mode
+    -- Cancel with Esc in normal mode
     vim.keymap.set('n', '<Esc>', funcs.cancel, { buffer = buf })
-    vim.keymap.set('n', 'q', funcs.cancel, { buffer = buf })
   end
 })
 
@@ -231,7 +230,7 @@ vim.api.nvim_create_autocmd('User', {
   callback = function(ev)
     local buf = ev.data.buf
     -- Custom keymaps for preview buffer
-    vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = buf })
+    vim.keymap.set('n', '<leader>q', '<cmd>close<CR>', { buffer = buf })
     vim.keymap.set('n', '<C-s>', function()
       vim.cmd('write')  -- Save edits
       require('commentary').save()  -- Save to file
@@ -244,16 +243,19 @@ vim.api.nvim_create_autocmd('User', {
   pattern = 'CommentaryCommentsEnter',
   callback = function(ev)
     local buf = ev.data.buf
-    vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = buf })
+    vim.keymap.set('n', '<leader>q', '<cmd>close<CR>', { buffer = buf })
     vim.keymap.set('n', '<Esc>', '<cmd>close<CR>', { buffer = buf })
   end
 })
 ```
 
 Comment input buffers also support normal write commands: `:w` saves without
-closing, `:wq` saves and closes, and `:q` discards unsaved changes. `gf` and
-`<C-w>f` open the file under the cursor in a split; closing that split returns
-focus to the comment window.
+closing and `:wq` saves and closes. Closing a modified input asks whether to
+save, discard, or cancel; blank new inputs and unchanged edits close without a
+prompt. `<leader>q` saves and closes, while plain `q` retains its normal Vim
+behavior. In input and comment-view buffers, `gf` and `<C-w>f` open the file
+under the cursor in a split; closing that split returns focus to the Commentary
+window.
 
 ### Available User Events
 
@@ -347,7 +349,7 @@ The preview buffer is fully editable. You can:
 - Delete entire comment sections
 - Reorder comments
 - Save with `:w` to update the review
-- Close with `q`
+- Close with `<leader>q`
 
 ### Thread Discussions
 

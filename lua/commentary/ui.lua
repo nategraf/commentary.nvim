@@ -2,6 +2,10 @@ local M = {}
 
 local config = require("commentary.config")
 
+M._confirm_unsaved_close = function()
+  return vim.fn.confirm("Save changes to this review comment?", "&Save\n&Discard\n&Cancel", 3)
+end
+
 local function enable_wrapped_navigation(buf)
   vim.keymap.set("n", "j", "gj", {
     buffer = buf,
@@ -15,6 +19,40 @@ local function enable_wrapped_navigation(buf)
     silent = true,
     desc = "Move up one visible line",
   })
+end
+
+local function setup_file_navigation(buf, comment_win)
+  local function open_file_in_split()
+    local opened, err = pcall(vim.cmd, "wincmd f")
+    if not opened then
+      vim.notify(tostring(err), vim.log.levels.ERROR)
+      return
+    end
+
+    local file_win = vim.api.nvim_get_current_win()
+    if file_win == comment_win then
+      return
+    end
+
+    vim.api.nvim_create_autocmd("WinClosed", {
+      pattern = tostring(file_win),
+      once = true,
+      callback = function()
+        vim.schedule(function()
+          if vim.api.nvim_win_is_valid(comment_win) then
+            vim.api.nvim_set_current_win(comment_win)
+          end
+        end)
+      end,
+    })
+  end
+
+  for _, lhs in ipairs({ "gf", "<C-w>f" }) do
+    vim.keymap.set("n", lhs, open_file_in_split, {
+      buffer = buf,
+      desc = "Open file under cursor in a split",
+    })
+  end
 end
 
 local function configured_key(action)
@@ -140,7 +178,7 @@ function M.get_input(opts)
   -- Buffer-local keymaps
   vim.keymap.set("n", "<CR>", submit, { buffer = buf, nowait = true })
   vim.keymap.set("n", "<C-CR>", submit, { buffer = buf, nowait = true })
-  vim.keymap.set("n", "q", cancel, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "<leader>q", cancel, { buffer = buf, nowait = true })
   vim.keymap.set("n", "<Esc>", cancel, { buffer = buf, nowait = true })
   vim.keymap.set("i", "<C-CR>", submit, { buffer = buf, nowait = true })
   vim.keymap.set("i", "<C-c>", cancel, { buffer = buf, nowait = true })
@@ -265,10 +303,24 @@ function M.show_comment_input(callback, context, title, initial_text)
 
   -- Setup keymaps
   local saved_text
+  local initial_buffer_text = initial_text or ""
+  local close_handled = false
+  local cancel_notified = false
+
+  local function get_text()
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    return table.concat(lines, "\n")
+  end
+
+  local function notify_cancelled()
+    if not cancel_notified then
+      cancel_notified = true
+      callback(nil)
+    end
+  end
 
   local function save_text()
-    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    local text = table.concat(lines, "\n")
+    local text = get_text()
     if text == saved_text then
       vim.api.nvim_buf_set_option(buf, "modified", false)
       return true
@@ -286,12 +338,51 @@ function M.show_comment_input(callback, context, title, initial_text)
     return true
   end
 
+  local function request_close()
+    if close_handled then
+      return true
+    end
+
+    local text = get_text()
+    local baseline = saved_text == nil and initial_buffer_text or saved_text
+    local changed = text ~= baseline
+    local needs_prompt = changed and (saved_text ~= nil or initial_text ~= nil or vim.trim(text) ~= "")
+
+    if needs_prompt then
+      local choice = M._confirm_unsaved_close()
+      if choice == 1 then
+        if not save_text() then
+          return false
+        end
+      elseif choice == 2 then
+        notify_cancelled()
+        vim.api.nvim_buf_set_option(buf, "modified", false)
+      else
+        return false
+      end
+    else
+      if saved_text == nil and initial_text == nil then
+        notify_cancelled()
+      end
+      vim.api.nvim_buf_set_option(buf, "modified", false)
+    end
+
+    close_handled = true
+    return true
+  end
+
   local function close_with_text()
     -- Leave insert mode before closing
     if vim.fn.mode() == "i" then
       vim.cmd("stopinsert")
     end
-    if save_text() then
+    if initial_text == nil and saved_text == nil and vim.trim(get_text()) == "" then
+      notify_cancelled()
+      vim.api.nvim_buf_set_option(buf, "modified", false)
+      close_handled = true
+      vim.api.nvim_win_close(win, true)
+    elseif save_text() then
+      close_handled = true
       vim.api.nvim_win_close(win, true)
     end
   end
@@ -301,8 +392,9 @@ function M.show_comment_input(callback, context, title, initial_text)
     if vim.fn.mode() == "i" then
       vim.cmd("stopinsert")
     end
-    vim.api.nvim_win_close(win, true)
-    callback(nil)
+    if request_close() then
+      vim.api.nvim_win_close(win, true)
+    end
   end
 
   -- Normal mode mappings
@@ -316,9 +408,10 @@ function M.show_comment_input(callback, context, title, initial_text)
     callback = close_cancelled,
   })
 
-  vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {
+  vim.api.nvim_buf_set_keymap(buf, "n", "<leader>q", "", {
     noremap = true,
-    callback = close_cancelled,
+    callback = close_with_text,
+    desc = "Save and close review comment",
   })
 
   -- Insert mode mappings
@@ -336,52 +429,15 @@ function M.show_comment_input(callback, context, title, initial_text)
     end,
   })
 
-  -- A plain :q intentionally discards an unsaved draft. :wq runs the write
-  -- handler first, so it still persists the comment before this clears the
-  -- modified flag.
   vim.api.nvim_create_autocmd("QuitPre", {
     buffer = buf,
     callback = function()
-      if vim.api.nvim_buf_is_valid(buf) then
-        vim.api.nvim_buf_set_option(buf, "modified", false)
+      if vim.api.nvim_buf_is_valid(buf) and not request_close() then
+        error("Close cancelled")
       end
     end,
   })
-
-  local function open_file_in_split()
-    local comment_win = win
-    local opened, err = pcall(vim.cmd, "wincmd f")
-    if not opened then
-      vim.notify(tostring(err), vim.log.levels.ERROR)
-      return
-    end
-
-    local file_win = vim.api.nvim_get_current_win()
-    if file_win == comment_win then
-      return
-    end
-
-    vim.api.nvim_create_autocmd("WinClosed", {
-      pattern = tostring(file_win),
-      once = true,
-      callback = function()
-        vim.schedule(function()
-          if vim.api.nvim_win_is_valid(comment_win) then
-            vim.api.nvim_set_current_win(comment_win)
-          end
-        end)
-      end,
-    })
-  end
-
-  vim.keymap.set("n", "gf", open_file_in_split, {
-    buffer = buf,
-    desc = "Open file under cursor in a split",
-  })
-  vim.keymap.set("n", "<C-w>f", open_file_in_split, {
-    buffer = buf,
-    desc = "Open file under cursor in a split",
-  })
+  setup_file_navigation(buf, win)
 
   -- Function to adjust window height based on content
   local function adjust_window_height()
@@ -510,8 +566,7 @@ function M.show_preview(content, format)
   -- Mark as not modified after setting content
   vim.api.nvim_buf_set_option(buf, "modified", false)
 
-  -- Add keymap to close with q
-  vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", {
+  vim.api.nvim_buf_set_keymap(buf, "n", "<leader>q", "<cmd>close<CR>", {
     noremap = true,
     silent = true,
     desc = "Close preview",
@@ -657,9 +712,10 @@ function M.show_comment_list(comments)
   vim.api.nvim_win_set_option(win, "linebreak", true)
   enable_wrapped_navigation(buf)
   setup_comment_actions(buf, win, comment_by_line)
+  setup_file_navigation(buf, win)
 
   -- Setup keymaps
-  vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", {
+  vim.api.nvim_buf_set_keymap(buf, "n", "<leader>q", "<cmd>close<CR>", {
     noremap = true,
     silent = true,
     desc = "Close comment window",
