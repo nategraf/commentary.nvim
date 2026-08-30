@@ -78,7 +78,7 @@ end
 
 local function thread_count_label(thread_data)
   local count = #(thread_data.replies or {}) + 1
-  return count > 1 and string.format(" (%d comments)", count) or ""
+  return count > 1 and string.format("[%d] ", count) or ""
 end
 
 local function telescope_thread_entry_parts(thread_info)
@@ -87,12 +87,12 @@ local function telescope_thread_entry_parts(thread_info)
   local line = root.line_start == root.line_end and tostring(root.line_start)
     or string.format("%d-%d", root.line_start, root.line_end)
   local text = root.comment:match("^[^\n]*") or root.comment
-  return filename, line, anchor_label(root) .. text .. thread_count_label(thread_info.data)
+  return filename, line, thread_count_label(thread_info.data), anchor_label(root) .. text
 end
 
 local function format_telescope_thread_entry(thread_info)
-  local filename, line, text = telescope_thread_entry_parts(thread_info)
-  return string.format("%s:%s: %s", filename, line, text)
+  local filename, line, count, text = telescope_thread_entry_parts(thread_info)
+  return string.format("%s:%s: %s%s", filename, line, count, text)
 end
 
 local function make_telescope_thread_displayer(entry_display)
@@ -101,15 +101,17 @@ local function make_telescope_thread_displayer(entry_display)
     items = {
       {},
       {},
+      {},
       { remaining = true },
     },
   })
 
   return function(entry)
-    local filename, line, text = telescope_thread_entry_parts(entry.value)
+    local filename, line, count, text = telescope_thread_entry_parts(entry.value)
     return displayer({
       { filename .. ":", "TelescopeResultsIdentifier" },
       { line .. ": ", "TelescopeResultsNumber" },
+      { count, "CommentaryThreadCount" },
       { text, "TelescopeResultsComment" },
     })
   end
@@ -534,9 +536,9 @@ function M.list_threads_with_quickfix(sort_mode)
     -- Create preview text with thread info
     local text = string.format(
       "%s%s%s",
+      thread_count_label(thread_data),
       anchor_label(root_comment),
-      root_comment.comment:match("^[^\n]*") or root_comment.comment,
-      thread_count_label(thread_data)
+      root_comment.comment:match("^[^\n]*") or root_comment.comment
     )
 
     if #text > 80 then
@@ -605,9 +607,9 @@ function M.list_threads_with_fzf_lua(sort_mode)
       "%s:%s: %s%s%s",
       root_comment.file,
       line_info,
+      thread_count_label(thread_info.data),
       anchor_label(root_comment),
-      preview_text,
-      thread_count_label(thread_info.data)
+      preview_text
     )
 
     table.insert(entries, {
@@ -794,6 +796,10 @@ function M.list_threads_with_telescope(sort_mode)
   local picker_threads = reverse_copy(thread_list)
 
   local make_display = make_telescope_thread_displayer(entry_display)
+  vim.api.nvim_set_hl(0, "CommentaryThreadCount", {
+    default = true,
+    link = "TelescopeResultsSpecialComment",
+  })
 
   pickers
     .new({}, {

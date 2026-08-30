@@ -99,28 +99,30 @@ T["Telescope renders thread rows as file, line, and text"] = function()
 
   MiniTest.expect.equality(
     list._format_telescope_thread_entry(thread_info),
-    "lua/commentary/list.lua:12-14: Keep the picker concise (2 comments)"
+    "lua/commentary/list.lua:12-14: [2] Keep the picker concise"
   )
 
   local display_items
   local make_display = list._make_telescope_thread_displayer({
     create = function(config)
       MiniTest.expect.equality(config.separator, "")
+      MiniTest.expect.equality(#config.items, 4)
       return function(items)
         display_items = items
-        return items[1][1] .. items[2][1] .. items[3][1]
+        return items[1][1] .. items[2][1] .. items[3][1] .. items[4][1]
       end
     end,
   })
 
   MiniTest.expect.equality(
     make_display({ value = thread_info }),
-    "lua/commentary/list.lua:12-14: Keep the picker concise (2 comments)"
+    "lua/commentary/list.lua:12-14: [2] Keep the picker concise"
   )
   MiniTest.expect.equality(display_items, {
     { "lua/commentary/list.lua:", "TelescopeResultsIdentifier" },
     { "12-14: ", "TelescopeResultsNumber" },
-    { "Keep the picker concise (2 comments)", "TelescopeResultsComment" },
+    { "[2] ", "CommentaryThreadCount" },
+    { "Keep the picker concise", "TelescopeResultsComment" },
   })
 end
 
