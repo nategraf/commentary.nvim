@@ -155,6 +155,11 @@ require('commentary').setup({
     enabled = true,
     max_preview_length = 80,
   },
+  integrations = {
+    picker = 'auto', -- 'auto', 'telescope', 'fzf-lua', or false
+    -- Top-to-bottom thread order: 'activity', 'file', or a comparator function
+    thread_sort = 'activity',
+  },
   -- Keymaps (set to false to disable all keymaps)
   keymaps = {
     clear = '<leader>rx',
@@ -286,7 +291,7 @@ end
 | ---------------------------- | -------------- | ----------------------------------------------------------- |
 | `:CommentaryComment [lines]` | `<leader>rc`   | Add comment at cursor/selection with optional context lines |
 | `:CommentaryShowComment`     | `<leader>rs`   | Show comments at cursor position                            |
-| `:CommentaryList`            | `<leader>rl`   | List all comments (Telescope/fzf-lua/quickfix)              |
+| `:CommentaryList [sort]`     | `<leader>rl`   | List threads by `activity` or `file`                         |
 | `:CommentaryPreview`         | `<leader>rp`   | Open preview window with editable content                   |
 | `:CommentarySave [path]`     | `<leader>rw`   | Save review to file                                         |
 | `:CommentaryCopy`            | `<leader>ry`   | Copy review to clipboard                                    |
@@ -356,6 +361,14 @@ Comments automatically create discussion threads. You can:
 <img src="assets/screenshot/picker.png" alt="Comment List Picker" />
 
 The `:CommentaryList` command (`<leader>rl`) automatically selects the best available picker:
+
+By default, threads are ordered by their latest comment timestamp, with the
+oldest at the top and the most recently active thread at the bottom and
+initially selected. Set `integrations.thread_sort = 'file'` to group by file and
+line instead. A custom comparator receives thread entries containing `id`,
+`data`, and the computed `activity` timestamp; it should return `true` when its
+first argument should appear above its second. Use `:CommentaryList file` for a
+one-off file-and-line ordering without changing the configured default.
 
 1. **[Telescope](https://github.com/nvim-telescope/telescope.nvim)** (if installed)
 

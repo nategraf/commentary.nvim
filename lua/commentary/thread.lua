@@ -72,6 +72,15 @@ function M.build_thread_tree(comments)
     end
   end
 
+  for _, thread in pairs(threads) do
+    table.sort(thread.replies, function(a, b)
+      if (a.timestamp or 0) ~= (b.timestamp or 0) then
+        return (a.timestamp or 0) < (b.timestamp or 0)
+      end
+      return tostring(a.id) < tostring(b.id)
+    end)
+  end
+
   return threads
 end
 

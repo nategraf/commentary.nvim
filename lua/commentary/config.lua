@@ -145,6 +145,8 @@ local defaults = {
   integrations = {
     -- Automatically detect and use available pickers
     picker = "auto", -- 'auto', 'telescope', 'fzf-lua', 'snacks', false
+    -- Thread order from top to bottom: 'activity', 'file', or a comparator.
+    thread_sort = "activity",
   },
 }
 
@@ -167,6 +169,11 @@ function M.setup(opts)
   local format = config.output and config.output.format
   if format and not valid_formats[format] then
     error(string.format("Invalid output.format: '%s'. Must be 'detailed' or 'minimal'", format))
+  end
+
+  local thread_sort = config.integrations and config.integrations.thread_sort
+  if type(thread_sort) ~= "function" and thread_sort ~= "activity" and thread_sort ~= "file" then
+    error("integrations.thread_sort must be 'activity', 'file', or a comparator function")
   end
 
   -- Create highlight groups

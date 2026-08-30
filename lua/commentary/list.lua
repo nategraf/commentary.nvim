@@ -1,8 +1,72 @@
 local M = {}
 
 local anchor = require("commentary.anchor")
+local config = require("commentary.config")
 local state = require("commentary.state")
 local preview = require("commentary.list-preview")
+
+local function thread_activity(thread_data)
+  local activity = thread_data.root_comment.timestamp or 0
+  for _, reply in ipairs(thread_data.replies or {}) do
+    activity = math.max(activity, reply.timestamp or 0)
+  end
+  return activity
+end
+
+local function compare_thread_location(a, b)
+  local a_root = a.data.root_comment
+  local b_root = b.data.root_comment
+  if (a_root.file or "") ~= (b_root.file or "") then
+    return (a_root.file or "") < (b_root.file or "")
+  end
+  if (a_root.line_start or 0) ~= (b_root.line_start or 0) then
+    return (a_root.line_start or 0) < (b_root.line_start or 0)
+  end
+  return tostring(a.id) < tostring(b.id)
+end
+
+--- Convert a thread map into its configured top-to-bottom display order.
+---@param threads table<string, table>
+---@param sort_mode? "activity"|"file"|fun(a: table, b: table): boolean
+---@return table[] thread_list
+local function sort_thread_list(threads, sort_mode)
+  local thread_list = {}
+  for thread_id, thread_data in pairs(threads) do
+    table.insert(thread_list, {
+      id = thread_id,
+      data = thread_data,
+      activity = thread_activity(thread_data),
+    })
+  end
+
+  sort_mode = sort_mode or config.get("integrations.thread_sort") or "activity"
+  local comparator
+  if sort_mode == "activity" then
+    comparator = function(a, b)
+      if a.activity ~= b.activity then
+        return a.activity < b.activity
+      end
+      return compare_thread_location(a, b)
+    end
+  elseif sort_mode == "file" then
+    comparator = compare_thread_location
+  elseif type(sort_mode) == "function" then
+    comparator = sort_mode
+  else
+    error("integrations.thread_sort must be 'activity', 'file', or a comparator function")
+  end
+
+  table.sort(thread_list, comparator)
+  return thread_list
+end
+
+local function reverse_copy(items)
+  local reversed = {}
+  for index = #items, 1, -1 do
+    table.insert(reversed, items[index])
+  end
+  return reversed
+end
 
 local function anchor_label(comment)
   local status = comment.anchor_status
@@ -106,23 +170,12 @@ function M.list_with_quickfix()
   local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
 
-  -- Sort threads by file and line
-  local sorted_threads = {}
-  for _, thread_data in pairs(threads) do
-    table.insert(sorted_threads, thread_data)
-  end
-  table.sort(sorted_threads, function(a, b)
-    local a_root = a.root_comment
-    local b_root = b.root_comment
-    if a_root.file ~= b_root.file then
-      return a_root.file < b_root.file
-    end
-    return a_root.line_start < b_root.line_start
-  end)
+  local sorted_threads = sort_thread_list(threads)
 
   -- Convert to quickfix items with thread grouping
   local qf_items = {}
-  for _, thread_data in ipairs(sorted_threads) do
+  for _, thread_info in ipairs(sorted_threads) do
+    local thread_data = thread_info.data
     -- Add root comment with thread indicator
     local root_item = comment_to_qf_item(thread_data.root_comment)
     root_item.text = "THREAD: " .. root_item.text
@@ -142,6 +195,7 @@ function M.list_with_quickfix()
   vim.fn.setqflist({}, "r", {
     title = "Code Review Comments",
     items = qf_items,
+    idx = #qf_items,
   })
 
   -- Open quickfix window
@@ -441,7 +495,8 @@ function M.list_comments()
 end
 
 --- List all threads using quickfix
-function M.list_threads_with_quickfix()
+---@param sort_mode? "activity"|"file"|fun(a: table, b: table): boolean
+function M.list_threads_with_quickfix(sort_mode)
   local comments = state.get_comments()
 
   if #comments == 0 then
@@ -452,10 +507,12 @@ function M.list_threads_with_quickfix()
   -- Build thread tree
   local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
+  local thread_list = sort_thread_list(threads, sort_mode)
 
   -- Convert threads to quickfix items
   local qf_items = {}
-  for _, thread_data in pairs(threads) do
+  for _, thread_info in ipairs(thread_list) do
+    local thread_data = thread_info.data
     local root_comment = thread_data.root_comment
 
     -- Create preview text with thread info
@@ -481,18 +538,11 @@ function M.list_threads_with_quickfix()
     })
   end
 
-  -- Sort by file and line
-  table.sort(qf_items, function(a, b)
-    if a.filename ~= b.filename then
-      return a.filename < b.filename
-    end
-    return a.lnum < b.lnum
-  end)
-
   -- Set quickfix list
   vim.fn.setqflist({}, "r", {
     title = "Code Review Threads",
     items = qf_items,
+    idx = #qf_items,
   })
 
   -- Open quickfix window
@@ -500,7 +550,8 @@ function M.list_threads_with_quickfix()
 end
 
 --- List all threads using fzf-lua
-function M.list_threads_with_fzf_lua()
+---@param sort_mode? "activity"|"file"|fun(a: table, b: table): boolean
+function M.list_threads_with_fzf_lua(sort_mode)
   local ok, fzf = pcall(require, "fzf-lua")
   if not ok then
     return false
@@ -516,28 +567,14 @@ function M.list_threads_with_fzf_lua()
   local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
 
-  -- Convert to sorted list
-  local thread_list = {}
-  for thread_id, thread_data in pairs(threads) do
-    table.insert(thread_list, {
-      id = thread_id,
-      data = thread_data,
-    })
-  end
-
-  -- Sort by file and line
-  table.sort(thread_list, function(a, b)
-    local a_root = a.data.root_comment
-    local b_root = b.data.root_comment
-    if a_root.file ~= b_root.file then
-      return a_root.file < b_root.file
-    end
-    return a_root.line_start < b_root.line_start
-  end)
+  local thread_list = sort_thread_list(threads, sort_mode)
+  -- fzf's default layout puts the first result at the bottom beside the
+  -- prompt. Reverse the top-to-bottom order so the newest thread starts there.
+  local picker_threads = reverse_copy(thread_list)
 
   -- Create entries
   local entries = {}
-  for _, thread_info in ipairs(thread_list) do
+  for _, thread_info in ipairs(picker_threads) do
     local root_comment = thread_info.data.root_comment
 
     local line_info = root_comment.line_start == root_comment.line_end and tostring(root_comment.line_start)
@@ -568,7 +605,7 @@ function M.list_threads_with_fzf_lua()
   local preview_buffers = {}
   local temp_buffers = {}
 
-  for _, thread_info in ipairs(thread_list) do
+  for _, thread_info in ipairs(picker_threads) do
     -- Create a scratch buffer
     local bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_option(bufnr, "buftype", "nofile")
@@ -676,6 +713,9 @@ function M.list_threads_with_fzf_lua()
 
   fzf.fzf_exec(display_strings, {
     prompt = "Code Review Threads> ",
+    fzf_opts = {
+      ["--layout"] = "default",
+    },
     previewer = {
       _ctor = function()
         return ThreadPreviewer
@@ -707,7 +747,8 @@ function M.list_threads_with_fzf_lua()
 end
 
 --- List all threads using telescope
-function M.list_threads_with_telescope()
+---@param sort_mode? "activity"|"file"|fun(a: table, b: table): boolean
+function M.list_threads_with_telescope(sort_mode)
   local ok = pcall(require, "telescope")
   if not ok then
     return false
@@ -730,24 +771,10 @@ function M.list_threads_with_telescope()
   local thread = require("commentary.thread")
   local threads = thread.build_thread_tree(comments)
 
-  -- Convert to sorted list
-  local thread_list = {}
-  for thread_id, thread_data in pairs(threads) do
-    table.insert(thread_list, {
-      id = thread_id,
-      data = thread_data,
-    })
-  end
-
-  -- Sort by file and line
-  table.sort(thread_list, function(a, b)
-    local a_root = a.data.root_comment
-    local b_root = b.data.root_comment
-    if a_root.file ~= b_root.file then
-      return a_root.file < b_root.file
-    end
-    return a_root.line_start < b_root.line_start
-  end)
+  local thread_list = sort_thread_list(threads, sort_mode)
+  -- Telescope's descending layout renders the first finder result at the
+  -- bottom. Reverse the desired visual order so recent activity is selected.
+  local picker_threads = reverse_copy(thread_list)
 
   local make_display = make_telescope_thread_displayer(entry_display)
 
@@ -755,7 +782,7 @@ function M.list_threads_with_telescope()
     .new({}, {
       prompt_title = "Code Review Threads",
       finder = finders.new_table({
-        results = thread_list,
+        results = picker_threads,
         entry_maker = function(thread_info)
           local root_comment = thread_info.data.root_comment
           local ordinal = format_telescope_thread_entry(thread_info)
@@ -770,6 +797,8 @@ function M.list_threads_with_telescope()
         end,
       }),
       sorter = conf.generic_sorter({}),
+      sorting_strategy = "descending",
+      default_selection_index = 1,
       previewer = preview.telescope_thread_previewer(),
       layout_strategy = "horizontal",
       layout_config = {
@@ -792,29 +821,32 @@ function M.list_threads_with_telescope()
 end
 
 --- List all threads
-function M.list_threads()
+---@param sort_mode? "activity"|"file"|fun(a: table, b: table): boolean
+function M.list_threads(sort_mode)
   -- Opening the picker is an explicit request for the current review state.
   -- In particular, re-read existing thread files because changing their
   -- contents does not update the storage directory's mtime.
   state.sync_from_storage()
 
   -- Try Telescope first
-  if M.list_threads_with_telescope() then
+  if M.list_threads_with_telescope(sort_mode) then
     return
   end
 
   -- Try fzf-lua
-  if M.list_threads_with_fzf_lua() then
+  if M.list_threads_with_fzf_lua(sort_mode) then
     return
   end
 
   -- Fallback to quickfix
-  M.list_threads_with_quickfix()
+  M.list_threads_with_quickfix(sort_mode)
 end
 
 M._comment_to_qf_item = comment_to_qf_item
 M._jump_to_comment = jump_to_comment
 M._format_telescope_thread_entry = format_telescope_thread_entry
 M._make_telescope_thread_displayer = make_telescope_thread_displayer
+M._sort_thread_list = sort_thread_list
+M._reverse_copy = reverse_copy
 
 return M

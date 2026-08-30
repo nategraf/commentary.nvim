@@ -47,9 +47,15 @@ function M.setup(opts)
     M.show_comment_at_cursor()
   end, { desc = "Show comment at cursor position" })
 
-  vim.api.nvim_create_user_command("CommentaryList", function()
-    M.list_comments()
-  end, { desc = "List all comments" })
+  vim.api.nvim_create_user_command("CommentaryList", function(args)
+    M.list_comments(args.args ~= "" and args.args or nil)
+  end, {
+    desc = "List all comments",
+    nargs = "?",
+    complete = function()
+      return { "activity", "file" }
+    end,
+  })
 
   vim.api.nvim_create_user_command("CommentaryDeleteComment", function()
     M.delete_comment_at_cursor()
@@ -404,8 +410,9 @@ function M.show_comment_at_cursor()
 end
 
 --- List all comments
-function M.list_comments()
-  require("commentary.list").list_threads()
+---@param sort_mode? "activity"|"file"|fun(a: table, b: table): boolean
+function M.list_comments(sort_mode)
+  require("commentary.list").list_threads(sort_mode)
 end
 
 --- Reply to a specific comment's thread

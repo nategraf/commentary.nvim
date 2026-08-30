@@ -123,6 +123,93 @@ T["Telescope previews wrap long comment lines"] = function()
   vim.api.nvim_buf_delete(bufnr, { force = true })
 end
 
+T["thread sort modes order entries from top to bottom"] = function()
+  local function root(id, file, line, timestamp)
+    return {
+      id = id,
+      thread_id = id .. "_thread",
+      file = file,
+      line_start = line,
+      line_end = line,
+      comment = id,
+      author = "Reviewer",
+      timestamp = timestamp,
+    }
+  end
+
+  local old = root("old", "z.lua", 30, 10)
+  local middle = root("middle", "m.lua", 20, 20)
+  local recent = root("recent", "a.lua", 10, 5)
+  local threads = {
+    [old.thread_id] = { root_comment = old, replies = {} },
+    [middle.thread_id] = { root_comment = middle, replies = {} },
+    [recent.thread_id] = {
+      root_comment = recent,
+      replies = {
+        vim.tbl_extend("force", vim.deepcopy(recent), {
+          id = "recent-reply",
+          parent_id = recent.id,
+          timestamp = 30,
+        }),
+      },
+    },
+  }
+
+  local activity = list._sort_thread_list(threads, "activity")
+  MiniTest.expect.equality(vim.tbl_map(function(item)
+    return item.id
+  end, activity), { "old_thread", "middle_thread", "recent_thread" })
+  MiniTest.expect.equality(vim.tbl_map(function(item)
+    return item.activity
+  end, activity), { 10, 20, 30 })
+
+  local file = list._sort_thread_list(threads, "file")
+  MiniTest.expect.equality(vim.tbl_map(function(item)
+    return item.id
+  end, file), { "recent_thread", "middle_thread", "old_thread" })
+
+  local custom = list._sort_thread_list(threads, function(a, b)
+    return a.id > b.id
+  end)
+  MiniTest.expect.equality(vim.tbl_map(function(item)
+    return item.id
+  end, custom), { "recent_thread", "old_thread", "middle_thread" })
+
+  -- Telescope and fzf use bottom-up layouts, so their finder input reverses
+  -- the visual top-to-bottom order and selects the newest thread first.
+  local picker = list._reverse_copy(activity)
+  MiniTest.expect.equality(vim.tbl_map(function(item)
+    return item.id
+  end, picker), { "recent_thread", "middle_thread", "old_thread" })
+end
+
+T["thread replies are chronological regardless of storage order"] = function()
+  local root = {
+    id = "root",
+    thread_id = "root_thread",
+    file = "example.lua",
+    line_start = 1,
+    line_end = 1,
+    comment = "Root",
+    timestamp = 1,
+  }
+  local latest = vim.tbl_extend("force", vim.deepcopy(root), {
+    id = "latest",
+    parent_id = root.id,
+    timestamp = 3,
+  })
+  local earlier = vim.tbl_extend("force", vim.deepcopy(root), {
+    id = "earlier",
+    parent_id = root.id,
+    timestamp = 2,
+  })
+
+  local built = thread.build_thread_tree({ root, latest, earlier })
+  MiniTest.expect.equality(vim.tbl_map(function(item)
+    return item.id
+  end, built[root.thread_id].replies), { "earlier", "latest" })
+end
+
 T["comment jump reports edit failures"] = function()
   local original_cmd = vim.cmd
   local original_notify = vim.notify
