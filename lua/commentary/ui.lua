@@ -659,8 +659,8 @@ function M.show_comment_list(comments)
       )
       append_line("", comment)
 
-      -- Comment content (split by lines to avoid newline issues)
-      for line in comment.comment:gmatch("[^\n]+") do
+      -- Preserve intentional blank lines in Markdown comments.
+      for _, line in ipairs(vim.split(comment.comment, "\n", { plain = true, trimempty = false })) do
         append_line(line, comment)
       end
     end

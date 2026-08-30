@@ -67,6 +67,32 @@ T["comment views navigate by wrapped screen lines"] = function()
   vim.api.nvim_win_close(win, true)
 end
 
+T["comment views preserve consecutive blank lines"] = function()
+  ui.show_comment_list({
+    {
+      id = "comment-1",
+      file = "example.lua",
+      line_start = 1,
+      line_end = 1,
+      comment = "First paragraph\n\n\nSecond paragraph",
+      author = "Reviewer",
+      timestamp = 1,
+    },
+  })
+
+  local win = vim.api.nvim_get_current_win()
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  local first = vim.fn.index(lines, "First paragraph") + 1
+  MiniTest.expect.equality(vim.list_slice(lines, first, first + 3), {
+    "First paragraph",
+    "",
+    "",
+    "Second paragraph",
+  })
+
+  vim.api.nvim_win_close(win, true)
+end
+
 T["comment input supports write and write-quit"] = function()
   local saved = {}
   ui.show_comment_input(function(text)
