@@ -507,8 +507,11 @@ function M.show_comment_input(callback, context, title, initial_text)
     data = { buf = buf, win = win },
   })
 
-  -- Start in insert mode
-  vim.cmd(initial_text ~= nil and "startinsert!" or "startinsert")
+  -- New comments are ready for immediate typing. Existing comments open in
+  -- normal mode so navigation and editing behave like a regular buffer.
+  if initial_text == nil then
+    vim.cmd("startinsert")
+  end
 end
 
 --- Show preview window
