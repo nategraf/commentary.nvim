@@ -65,6 +65,22 @@ T["explicit delete confirms and removes a reply"] = function()
   MiniTest.expect.equality(state.get_comment(reply.id), nil)
 end
 
+T["deleting a reply removes every later reply"] = function()
+  local root, reply = add_thread()
+  state.add_reply(root.id, "Later reply")
+  vim.ui.select = function(items, opts, callback)
+    MiniTest.expect.equality(items, { "Yes", "No" })
+    MiniTest.expect.match(opts.prompt, "1 later reply")
+    callback("Yes")
+  end
+
+  review.delete_comment(reply)
+
+  local comments = state.get_thread_comments(root.thread_id)
+  MiniTest.expect.equality(#comments, 1)
+  MiniTest.expect.equality(comments[1].id, root.id)
+end
+
 T["explicit reply acts on the selected thread"] = function()
   local root, reply = add_thread()
   ui.show_comment_input = function(callback)

@@ -605,8 +605,15 @@ function M.delete_comment(comment_data)
     first_line = first_line:sub(1, 47) .. "..."
   end
 
+  local removed = require("commentary.thread").get_comment_and_followups(comment_data, state.get_comments())
+  local followup_count = math.max(0, #removed - 1)
+  local suffix = ""
+  if followup_count > 0 then
+    suffix = string.format(" and %d later %s", followup_count, followup_count == 1 and "reply" or "replies")
+  end
+
   vim.ui.select({ "Yes", "No" }, {
-    prompt = string.format("Delete comment: %s?", first_line),
+    prompt = string.format("Delete comment%s: %s?", suffix, first_line),
   }, function(choice)
     if choice == "Yes" then
       delete_comment(comment_data)

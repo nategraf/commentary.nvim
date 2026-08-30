@@ -259,19 +259,20 @@ end
 function M.delete_comment(id)
   local storage_backend = get_storage()
   local deleted_comment = storage_backend.get(id)
+  local removed_comments = {}
+  if deleted_comment then
+    removed_comments = require("commentary.thread").get_comment_and_followups(deleted_comment, storage_backend.get_all())
+  end
   local success = storage_backend.delete(id)
   if success then
-    local reported_changes = nil
-    if deleted_comment and deleted_comment.parent_id then
-      -- Legacy thread files derive reply IDs from their position. Rewriting a
-      -- thread can therefore renumber later replies; report the logical
-      -- deletion rather than those storage-level identity changes.
-      reported_changes = {
-        added = {},
-        removed = { deleted_comment },
-        updated = {},
-      }
-    end
+    -- Legacy thread files derive reply IDs from their position. Report the
+    -- logical cascade rather than storage-level identity changes caused by a
+    -- rewrite.
+    local reported_changes = {
+      added = {},
+      removed = removed_comments,
+      updated = {},
+    }
     finish_change("editor", reported_changes)
   end
   return success

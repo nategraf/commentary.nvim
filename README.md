@@ -357,6 +357,7 @@ Comments automatically create discussion threads. You can:
 
 - **Reply to comments**: Use `<leader>rr` to reply to existing comments
 - **Create new threads**: Use `<leader>rc` to start a new thread on the same line
+- **Delete a conversation tail**: Deleting a reply also deletes every later reply below it
 
 ### Comment List Picker
 

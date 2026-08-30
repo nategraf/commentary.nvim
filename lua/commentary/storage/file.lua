@@ -441,8 +441,8 @@ function M.delete(id)
     end
   end
 
-  -- Replies share their root comment's file. Remove the selected reply and
-  -- rewrite that file instead of looking for a file named after the reply.
+  -- Replies share their root comment's file. A thread is linear, so deleting
+  -- a reply also deletes every later reply below it in that file.
   if target and target.parent_id and target.thread_id then
     local root_id = target.thread_id:match("^(.+)_thread$") or target.parent_id
     local filepath = dir .. "/" .. root_id .. ".md"
@@ -450,9 +450,15 @@ function M.delete(id)
       return false
     end
 
+    local removed = require("commentary.thread").get_comment_and_followups(target, comments)
+    local removed_ids = {}
+    for _, comment in ipairs(removed) do
+      removed_ids[comment.id] = true
+    end
+
     local remaining = {}
     for _, comment in ipairs(comments) do
-      if comment.thread_id == target.thread_id and comment.id ~= id then
+      if comment.thread_id == target.thread_id and not removed_ids[comment.id] then
         table.insert(remaining, comment)
       end
     end

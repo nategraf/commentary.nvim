@@ -79,13 +79,27 @@ end
 ---@param id string
 ---@return boolean success
 function M.delete(id)
-  for i, comment in ipairs(session.comments) do
+  local target
+  for _, comment in ipairs(session.comments) do
     if comment.id == id then
-      table.remove(session.comments, i)
-      return true
+      target = comment
+      break
     end
   end
-  return false
+  if not target then
+    return false
+  end
+
+  local removed = require("commentary.thread").get_comment_and_followups(target, session.comments)
+  local removed_ids = {}
+  for _, comment in ipairs(removed) do
+    removed_ids[comment.id] = true
+  end
+
+  session.comments = vim.tbl_filter(function(comment)
+    return not removed_ids[comment.id]
+  end, session.comments)
+  return true
 end
 
 --- Clear all comments

@@ -13,6 +13,20 @@
 
 local M = {}
 
+local function sort_comments(comments)
+  local original_position = {}
+  for index, comment in ipairs(comments) do
+    original_position[comment.id] = index
+  end
+
+  table.sort(comments, function(a, b)
+    if (a.timestamp or 0) ~= (b.timestamp or 0) then
+      return (a.timestamp or 0) < (b.timestamp or 0)
+    end
+    return original_position[a.id] < original_position[b.id]
+  end)
+end
+
 --- Create a reply to a comment
 ---@param parent_comment table The parent comment
 ---@param reply_text string The reply text
@@ -73,12 +87,7 @@ function M.build_thread_tree(comments)
   end
 
   for _, thread in pairs(threads) do
-    table.sort(thread.replies, function(a, b)
-      if (a.timestamp or 0) ~= (b.timestamp or 0) then
-        return (a.timestamp or 0) < (b.timestamp or 0)
-      end
-      return tostring(a.id) < tostring(b.id)
-    end)
+    sort_comments(thread.replies)
   end
 
   return threads
@@ -121,6 +130,35 @@ function M.get_thread_comments(thread_id, comments)
   end
 
   return thread_comments
+end
+
+--- Return a comment and every later comment in its linear thread.
+---@param target table
+---@param comments table[]
+---@return table[]
+function M.get_comment_and_followups(target, comments)
+  if not target.thread_id then
+    return { target }
+  end
+
+  local thread_comments = M.get_thread_comments(target.thread_id, comments)
+  sort_comments(thread_comments)
+
+  if not target.parent_id then
+    return thread_comments
+  end
+
+  local followups = {}
+  local found = false
+  for _, comment in ipairs(thread_comments) do
+    if comment.id == target.id then
+      found = true
+    end
+    if found then
+      table.insert(followups, comment)
+    end
+  end
+  return followups
 end
 
 return M

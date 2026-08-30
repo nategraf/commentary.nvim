@@ -30,7 +30,7 @@ local T = MiniTest.new_set({
   },
 })
 
-T["file storage deletes replies by rewriting their thread"] = function()
+T["file storage deletes a reply and every later reply"] = function()
   local storage = require("commentary.storage.file")
   storage.init()
 
@@ -84,25 +84,61 @@ T["file storage deletes replies by rewriting their thread"] = function()
   MiniTest.expect.equality(#events, 1)
   MiniTest.expect.equality(events[1].source, "editor")
   MiniTest.expect.equality(#events[1].added, 0)
-  MiniTest.expect.equality(#events[1].removed, 1)
+  MiniTest.expect.equality(#events[1].removed, 2)
   MiniTest.expect.equality(events[1].removed[1].comment, "First reply")
+  MiniTest.expect.equality(events[1].removed[2].comment, "Second reply")
   MiniTest.expect.equality(#events[1].updated, 0)
 
   storage.reload()
   comments = storage.get_all()
-  MiniTest.expect.equality(#comments, 2)
-  MiniTest.expect.equality(comments[1].comment, "Root comment")
-  MiniTest.expect.equality(comments[2].comment, "Second reply")
-  MiniTest.expect.equality(vim.fn.filereadable(test_dir .. "/root.md"), 1)
-
-  MiniTest.expect.equality(storage.delete(comments[2].id), true)
-  storage.reload()
-  comments = storage.get_all()
   MiniTest.expect.equality(#comments, 1)
   MiniTest.expect.equality(comments[1].comment, "Root comment")
+  MiniTest.expect.equality(vim.fn.filereadable(test_dir .. "/root.md"), 1)
 
   MiniTest.expect.equality(storage.delete(comments[1].id), true)
   MiniTest.expect.equality(vim.fn.filereadable(test_dir .. "/root.md"), 0)
+end
+
+T["file storage can delete only the last reply"] = function()
+  local storage = require("commentary.storage.file")
+  storage.init()
+
+  local root = {
+    id = "root",
+    thread_id = "root_thread",
+    file = "lua/example.lua",
+    line_start = 12,
+    line_end = 12,
+    author = "Reviewer",
+    timestamp = 1000,
+    comment = "Root comment",
+    context_lines = {},
+  }
+  local first = vim.tbl_extend("force", vim.deepcopy(root), {
+    id = "reply-1",
+    parent_id = root.id,
+    timestamp = 1001,
+    comment = "First reply",
+  })
+  local last = vim.tbl_extend("force", vim.deepcopy(root), {
+    id = "reply-2",
+    parent_id = root.id,
+    timestamp = 1002,
+    comment = "Last reply",
+  })
+  require("commentary.utils").save_to_file(
+    test_dir .. "/root.md",
+    storage.format_thread_as_markdown({ root, first, last })
+  )
+  storage.reload()
+
+  local comments = storage.get_all()
+  MiniTest.expect.equality(storage.delete(comments[3].id), true)
+  storage.reload()
+  comments = storage.get_all()
+  MiniTest.expect.equality(vim.tbl_map(function(comment)
+    return comment.comment
+  end, comments), { "Root comment", "First reply" })
 end
 
 T["file storage keeps a thread in one stable file"] = function()
