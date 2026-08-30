@@ -793,6 +793,11 @@ end
 
 --- List all threads
 function M.list_threads()
+  -- Opening the picker is an explicit request for the current review state.
+  -- In particular, re-read existing thread files because changing their
+  -- contents does not update the storage directory's mtime.
+  state.sync_from_storage()
+
   -- Try Telescope first
   if M.list_threads_with_telescope() then
     return

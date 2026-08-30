@@ -226,6 +226,15 @@ local function invalidate_cache()
   cache_timestamp = 0
 end
 
+--- Reload before a read-modify-write operation. Updating an existing thread
+--- file does not change the storage directory mtime, so the normal read cache
+--- cannot establish that its contents are current.
+---@return table[] comments
+local function load_comments_for_update()
+  invalidate_cache()
+  return load_comments()
+end
+
 --- Ensure storage directory exists (lazy creation)
 ---@return string dir
 local function ensure_storage_dir()
@@ -277,7 +286,7 @@ function M.add(comment_data)
   -- If this is a reply, update the root comment's file instead
   if comment_data.parent_id and comment_data.thread_id then
     -- Find the root comment of this thread
-    local comments = load_comments()
+    local comments = load_comments_for_update()
     local root_comment = nil
 
     for _, comment in ipairs(comments) do
@@ -364,7 +373,7 @@ end
 ---@param updates table Fields to update
 ---@return boolean success
 function M.update(id, updates)
-  local comments = load_comments()
+  local comments = load_comments_for_update()
   local target = nil
 
   for _, comment in ipairs(comments) do
@@ -423,7 +432,7 @@ end
 function M.delete(id)
   local dir = get_storage_dir()
 
-  local comments = load_comments()
+  local comments = load_comments_for_update()
   local target = nil
   for _, comment in ipairs(comments) do
     if comment.id == id then

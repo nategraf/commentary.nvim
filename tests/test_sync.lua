@@ -2,6 +2,7 @@ local config = require("commentary.config")
 local memory = require("commentary.storage.memory")
 local notification = require("commentary.notification")
 local state = require("commentary.state")
+local list = require("commentary.list")
 
 local events
 local notifications
@@ -125,6 +126,87 @@ T["file storage loads comments written by an external process"] = function()
   MiniTest.expect.equality(events[1].source, "storage")
   MiniTest.expect.equality(#notifications, 1)
   MiniTest.expect.match(notifications[1].message, "Written outside Neovim")
+end
+
+T["opening the thread list reloads replies appended outside Neovim"] = function()
+  test_dir = vim.fn.tempname()
+  config.setup({
+    comment = {
+      storage = {
+        backend = "file",
+        file = { dir = test_dir },
+      },
+    },
+    notifications = { enabled = true },
+  })
+  state._reset()
+  package.loaded["commentary.storage.file"] = nil
+  state.init()
+
+  local root_id = state.add_comment(make_comment("root", "Root comment"))
+  local root = state.get_comment(root_id)
+  local reply = vim.tbl_extend("force", vim.deepcopy(root), {
+    id = root_id .. "_comment_1",
+    parent_id = root_id,
+    timestamp = root.timestamp + 1,
+    comment = "Reply written outside Neovim",
+  })
+
+  local file_storage = require("commentary.storage.file")
+  local markdown = file_storage.format_thread_as_markdown({ root, reply })
+  require("commentary.utils").save_to_file(test_dir .. "/" .. root_id .. ".md", markdown)
+
+  -- Updating an existing file does not change the storage directory mtime, so
+  -- the already-populated cache remains stale until an explicit sync.
+  MiniTest.expect.equality(#state.get_comments(), 1)
+
+  local original_telescope = list.list_threads_with_telescope
+  list.list_threads_with_telescope = function()
+    return true
+  end
+  list.list_threads()
+  list.list_threads_with_telescope = original_telescope
+
+  local comments = state.get_comments()
+  MiniTest.expect.equality(#comments, 2)
+  MiniTest.expect.equality(comments[2].comment, "Reply written outside Neovim")
+end
+
+T["local thread updates preserve replies appended outside Neovim"] = function()
+  test_dir = vim.fn.tempname()
+  config.setup({
+    comment = {
+      storage = {
+        backend = "file",
+        file = { dir = test_dir },
+      },
+    },
+    notifications = { enabled = false },
+  })
+  state._reset()
+  package.loaded["commentary.storage.file"] = nil
+  state.init()
+
+  local root_id = state.add_comment(make_comment("root", "Root comment"))
+  local root = state.get_comment(root_id)
+  local reply = vim.tbl_extend("force", vim.deepcopy(root), {
+    id = root_id .. "_comment_1",
+    parent_id = root_id,
+    timestamp = root.timestamp + 1,
+    comment = "Reply written outside Neovim",
+  })
+
+  local file_storage = require("commentary.storage.file")
+  local markdown = file_storage.format_thread_as_markdown({ root, reply })
+  require("commentary.utils").save_to_file(test_dir .. "/" .. root_id .. ".md", markdown)
+
+  MiniTest.expect.equality(state.update_comment(root_id, { comment = "Edited root" }), true)
+  state.sync_from_storage()
+
+  local comments = state.get_comments()
+  MiniTest.expect.equality(#comments, 2)
+  MiniTest.expect.equality(comments[1].comment, "Edited root")
+  MiniTest.expect.equality(comments[2].comment, "Reply written outside Neovim")
 end
 
 T["multiple external additions use one batched notification"] = function()
