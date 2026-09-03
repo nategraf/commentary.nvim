@@ -408,6 +408,12 @@ function M.show_comment_input(callback, context, title, initial_text)
     callback = close_cancelled,
   })
 
+  vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {
+    noremap = true,
+    callback = close_cancelled,
+    desc = "Close review comment",
+  })
+
   -- Insert mode mappings
   vim.api.nvim_buf_set_keymap(buf, "i", "<C-CR>", "", {
     noremap = true,

@@ -214,18 +214,27 @@ T["closing a modified comment can discard or cancel"] = function()
   vim.api.nvim_win_close(win, true)
 end
 
-T["comment inputs do not override normal q bindings"] = function()
+T["q closes comment inputs using the normal close prompt"] = function()
+  local cancelled = false
+  ui._confirm_unsaved_close = function()
+    return 2
+  end
   ui.show_comment_input(function(text)
     MiniTest.expect.equality(text, nil)
-    return true
-  end, nil, nil, "Draft")
+    cancelled = true
+    return false
+  end, nil, nil, "Original")
   vim.cmd("stopinsert")
 
   local win = vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_get_current_buf()
-  MiniTest.expect.equality(buffer_mapping(buf, "q"), nil)
-  MiniTest.expect.equality(buffer_mapping_by_description(buf, "Save and close review comment"), nil)
-  vim.api.nvim_win_close(win, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Edited" })
+  local close_mapping = buffer_mapping_by_description(buf, "Close review comment")
+  MiniTest.expect.equality(close_mapping ~= nil, true)
+  close_mapping.callback()
+
+  MiniTest.expect.equality(cancelled, true)
+  MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), false)
 end
 
 T["comment input and view file navigation return focus to the float"] = function()
