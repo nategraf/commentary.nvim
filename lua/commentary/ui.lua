@@ -186,7 +186,7 @@ function M.get_input(opts)
   vim.keymap.set("n", "<CR>", submit, { buffer = buf, nowait = true })
   vim.keymap.set("n", "<C-CR>", submit, { buffer = buf, nowait = true })
   vim.keymap.set("n", "<leader>q", cancel, { buffer = buf, nowait = true })
-  vim.keymap.set("n", "<Esc>", cancel, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "q", cancel, { buffer = buf, nowait = true })
   vim.keymap.set("i", "<C-CR>", submit, { buffer = buf, nowait = true })
   vim.keymap.set("i", "<C-c>", cancel, { buffer = buf, nowait = true })
 
@@ -408,11 +408,6 @@ function M.show_comment_input(callback, context, title, initial_text)
   vim.api.nvim_buf_set_keymap(buf, "n", "<C-CR>", "", {
     noremap = true,
     callback = close_with_text,
-  })
-
-  vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "", {
-    noremap = true,
-    callback = close_cancelled,
   })
 
   vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {
@@ -731,7 +726,7 @@ function M.show_comment_list(comments)
     desc = "Close comment window",
   })
 
-  vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<CR>", {
+  vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", {
     noremap = true,
     silent = true,
     desc = "Close comment window",

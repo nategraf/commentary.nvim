@@ -42,6 +42,33 @@ local function comment(id, text, timestamp, parent_id)
   }
 end
 
+T["Escape retains native behavior in comment inputs and views"] = function()
+  local opens = {
+    function() ui.get_input({ initial_text = "Draft" }) end,
+    function() ui.show_comment_input(function() end, nil, nil, "Saved comment") end,
+    function() ui.show_comment_list({ comment("escape-test", "Read-only comment", 1) }) end,
+  }
+  for _, open in ipairs(opens) do
+    open()
+    vim.cmd("stopinsert")
+    local win = vim.api.nvim_get_current_win()
+    local buf = vim.api.nvim_get_current_buf()
+    MiniTest.expect.equality(buffer_mapping(buf, "<Esc>"), nil)
+    for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(buf, "i")) do
+      MiniTest.expect.equality(mapping.lhs == "<Esc>", false)
+    end
+    -- Simulate an extra Escape after leaving insert mode, and cancellation
+    -- of a pending operator. Neither should dismiss the window.
+    local keys = vim.api.nvim_replace_termcodes("<Esc>y<Esc>", true, false, true)
+    vim.api.nvim_feedkeys(keys, "xt", false)
+    MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), true)
+    local close = buffer_mapping(buf, "q")
+    MiniTest.expect.equality(close ~= nil, true)
+    if close.callback then close.callback() else vim.cmd("normal q") end
+    MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), false)
+  end
+end
+
 T["comment views navigate by wrapped screen lines"] = function()
   ui.show_comment_list({
     {

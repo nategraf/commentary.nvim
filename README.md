@@ -220,8 +220,8 @@ vim.api.nvim_create_autocmd('User', {
 
     -- Submit with C-CR in both insert and normal mode
     vim.keymap.set({'i', 'n'}, '<C-CR>', funcs.submit, { buffer = buf })
-    -- Cancel with Esc in normal mode
-    vim.keymap.set('n', '<Esc>', funcs.cancel, { buffer = buf })
+    -- Close with q in normal mode (prompts for unsaved changes)
+    vim.keymap.set('n', 'q', funcs.cancel, { buffer = buf })
   end
 })
 
@@ -245,7 +245,7 @@ vim.api.nvim_create_autocmd('User', {
   callback = function(ev)
     local buf = ev.data.buf
     vim.keymap.set('n', '<leader>q', '<cmd>close<CR>', { buffer = buf })
-    vim.keymap.set('n', '<Esc>', '<cmd>close<CR>', { buffer = buf })
+    vim.keymap.set('n', 'q', '<cmd>close<CR>', { buffer = buf })
   end
 })
 ```
@@ -253,8 +253,9 @@ vim.api.nvim_create_autocmd('User', {
 Comment input buffers also support normal write commands: `:w` saves without
 closing and `:wq` saves and closes. Closing a modified input asks whether to
 save, discard, or cancel; blank new inputs and unchanged edits close without a
-prompt. `<leader>q` saves and closes, while plain `q` retains its normal Vim
-behavior. In input and comment-view buffers, `gf` and `<C-w>f` open the file
+prompt. Plain `q` closes input and comment-view windows; it does not silently
+save edits. Escape is not mapped to close: it retains native mode and motion
+cancellation behavior. In input and comment-view buffers, `gf` and `<C-w>f` open the file
 under the cursor in a split; closing that split returns focus to the Commentary
 window.
 
