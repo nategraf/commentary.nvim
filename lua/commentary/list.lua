@@ -5,6 +5,57 @@ local config = require("commentary.config")
 local state = require("commentary.state")
 local preview = require("commentary.list-preview")
 
+-- Shared by picker adapters; confirmation defaults to keeping the threads.
+local function delete_threads(selected, close_picker)
+  local ids, seen, summaries, count = {}, {}, {}, 0
+  for _, item in ipairs(selected) do
+    if not seen[item.id] then
+      seen[item.id] = true
+      table.insert(ids, item.id)
+      count = count + 1 + #(item.data.replies or {})
+      if #summaries < 5 then
+        local root = item.data.root_comment
+        local text = (root.comment:match("^[^\n]*") or ""):sub(1, 80)
+        table.insert(summaries, string.format("%s:%d: %s", root.file, root.line_start, text))
+      end
+    end
+  end
+  if #ids == 0 then
+    return
+  end
+  if #ids > #summaries then
+    table.insert(summaries, string.format("... and %d more threads", #ids - #summaries))
+  end
+  local prompt = string.format("Delete %d thread(s), containing %d comment(s)?\n%s",
+    #ids, count, table.concat(summaries, "\n"))
+  if vim.fn.confirm(prompt, "&Delete\n&Cancel", 2) ~= 1 then
+    return
+  end
+  if close_picker then
+    close_picker()
+  end
+  local result = state.delete_threads(ids)
+  local message = string.format("Deleted %d thread(s), %d comment(s)", result.threads, result.comments)
+  if #result.failures > 0 then
+    message = message .. "\n" .. table.concat(result.failures, "\n")
+  end
+  vim.notify(message, #result.failures > 0 and vim.log.levels.ERROR or vim.log.levels.INFO)
+end
+
+local function delete_telescope_threads(prompt_bufnr)
+  local actions = require("telescope.actions")
+  local action_state = require("telescope.actions.state")
+  local entries = action_state.get_current_picker(prompt_bufnr):get_multi_selection()
+  if #entries == 0 then
+    entries = { action_state.get_selected_entry() }
+  end
+  local selected = {}
+  for _, entry in ipairs(entries) do
+    table.insert(selected, entry.value)
+  end
+  delete_threads(selected, function() actions.close(prompt_bufnr) end)
+end
+
 local function thread_activity(thread_data)
   local activity = thread_data.root_comment.timestamp or 0
   for _, reply in ipairs(thread_data.replies or {}) do
@@ -661,8 +712,8 @@ function M.list_threads_with_fzf_lua(sort_mode)
     -- Find matching entry by display string
     local matched_buffer = nil
     local matched_thread = nil
-    for _, entry in ipairs(self.entries) do
-      if entry.display == entry_str then
+    for index, entry in ipairs(self.entries) do
+      if tostring(index) .. "\t" .. entry.display == entry_str then
         matched_buffer = self.preview_buffers[entry.thread_id]
         matched_thread = entry
         break
@@ -726,14 +777,21 @@ function M.list_threads_with_fzf_lua(sort_mode)
 
   -- Create display strings
   local display_strings = {}
-  for _, entry in ipairs(entries) do
-    table.insert(display_strings, entry.display)
+  local entries_by_display = {}
+  for index, entry in ipairs(entries) do
+    -- Hidden numeric identity keeps duplicate file/text rows distinguishable.
+    local display = tostring(index) .. "\t" .. entry.display
+    table.insert(display_strings, display)
+    entries_by_display[display] = entry
   end
 
   fzf.fzf_exec(display_strings, {
     prompt = "Code Review Threads> ",
     fzf_opts = {
       ["--layout"] = "default",
+      ["--multi"] = true,
+      ["--delimiter"] = "\t",
+      ["--with-nth"] = "2..",
     },
     previewer = {
       _ctor = function()
@@ -745,18 +803,25 @@ function M.list_threads_with_fzf_lua(sort_mode)
       vim.defer_fn(cleanup_temp_buffers, 100)
     end,
     actions = {
+      [config.get("integrations.delete_threads_key"):lower():gsub("<c%-([^>]+)>", "ctrl-%1")] = function(selected)
+        local threads_to_delete = {}
+        for _, display in ipairs(selected or {}) do
+          local entry = entries_by_display[display]
+          if entry then
+            table.insert(threads_to_delete, { id = entry.thread_id, data = entry.thread_data })
+          end
+        end
+        delete_threads(threads_to_delete)
+      end,
       ["default"] = function(selected)
         if not selected or #selected == 0 then
           return
         end
 
         -- Find matching entry
-        local line = selected[1]
-        for _, entry in ipairs(entries) do
-          if entry.display == line then
-            open_thread(entry.thread_data)
-            break
-          end
+        local entry = entries_by_display[selected[1]]
+        if entry then
+          open_thread(entry.thread_data)
         end
       end,
     },
@@ -828,6 +893,11 @@ function M.list_threads_with_telescope(sort_mode)
         preview_width = 0.5,
       },
       attach_mappings = function(prompt_bufnr, map)
+        for _, mode in ipairs({ "i", "n" }) do
+          map(mode, config.get("integrations.delete_threads_key"), function()
+            delete_telescope_threads(prompt_bufnr)
+          end)
+        end
         actions.select_default:replace(function()
           local selection = action_state.get_selected_entry()
           actions.close(prompt_bufnr)
@@ -872,5 +942,7 @@ M._format_telescope_thread_entry = format_telescope_thread_entry
 M._make_telescope_thread_displayer = make_telescope_thread_displayer
 M._sort_thread_list = sort_thread_list
 M._reverse_copy = reverse_copy
+M._delete_threads = delete_threads
+M._delete_telescope_threads = delete_telescope_threads
 
 return M

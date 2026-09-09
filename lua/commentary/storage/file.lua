@@ -477,7 +477,9 @@ function M.delete(id)
 
   local filepath = dir .. "/" .. id .. ".md"
   if vim.fn.filereadable(filepath) == 1 then
-    vim.fn.delete(filepath)
+    if vim.fn.delete(filepath) ~= 0 then
+      return false
+    end
     invalidate_cache()
     return true
   end

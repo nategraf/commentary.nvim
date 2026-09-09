@@ -30,6 +30,28 @@ local T = MiniTest.new_set({
   },
 })
 
+T["thread batch removes one file per thread and reports filesystem failures"] = function()
+  state.init()
+  local a = state.add_comment({ id = "batch-a", file = "test.lua", line_start = 1, line_end = 1, comment = "A" })
+  state.add_reply(a, "Reply")
+  local b = state.add_comment({ id = "batch-b", file = "test.lua", line_start = 2, line_end = 2, comment = "B" })
+  local a_thread, b_thread = state.get_comment(a).thread_id, state.get_comment(b).thread_id
+  local original_delete = vim.fn.delete
+  local calls = 0
+  vim.fn.delete = function(path, ...)
+    calls = calls + 1
+    if path == test_dir .. "/" .. b .. ".md" then return -1 end
+    return original_delete(path, ...)
+  end
+  local ok, result = pcall(state.delete_threads, { a_thread, b_thread, a_thread })
+  vim.fn.delete = original_delete
+  assert(ok, result)
+  MiniTest.expect.equality(calls, 2)
+  MiniTest.expect.equality({ result.threads, result.comments, #result.failures }, { 1, 2, 1 })
+  MiniTest.expect.equality(vim.fn.filereadable(test_dir .. "/" .. a .. ".md"), 0)
+  MiniTest.expect.equality(vim.fn.filereadable(test_dir .. "/" .. b .. ".md"), 1)
+end
+
 T["file storage deletes a reply and every later reply"] = function()
   local storage = require("commentary.storage.file")
   storage.init()

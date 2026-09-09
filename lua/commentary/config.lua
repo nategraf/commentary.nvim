@@ -147,6 +147,7 @@ local defaults = {
     picker = "auto", -- 'auto', 'telescope', 'fzf-lua', 'snacks', false
     -- Thread order from top to bottom: 'activity', 'file', or a comparator.
     thread_sort = "activity",
+    delete_threads_key = "<C-g>",
   },
 }
 

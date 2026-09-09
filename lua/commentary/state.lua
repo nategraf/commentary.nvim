@@ -278,6 +278,43 @@ function M.delete_comment(id)
   return success
 end
 
+--- Delete complete threads with one UI refresh and change event per batch.
+function M.delete_threads(thread_ids)
+  local backend = get_storage()
+  if backend.reload then
+    backend.reload()
+  end
+  local threads = require("commentary.thread").build_thread_tree(backend.get_all())
+  local result = { threads = 0, comments = 0, failures = {} }
+  local seen, targets, removed = {}, {}, {}
+  for _, id in ipairs(thread_ids) do
+    if not seen[id] then
+      seen[id] = true
+      if threads[id] then
+        table.insert(targets, { id = id, data = threads[id] })
+      else
+        table.insert(result.failures, id .. ": thread no longer exists")
+      end
+    end
+  end
+  for _, target in ipairs(targets) do
+    -- Both backends delete the entire thread when given its root ID.
+    local ok, deleted = pcall(backend.delete, target.data.root_comment.id)
+    if ok and deleted then
+      result.threads = result.threads + 1
+      table.insert(removed, target.data.root_comment)
+      vim.list_extend(removed, target.data.replies or {})
+    else
+      table.insert(result.failures, target.id .. ": " .. (ok and "deletion failed" or tostring(deleted)))
+    end
+  end
+  result.comments = #removed
+  if #targets > 0 then
+    finish_change("editor", { added = {}, updated = {}, removed = removed })
+  end
+  return result
+end
+
 --- Replace all comments (used for preview editing)
 ---@param new_comments table[] New comments array
 function M.replace_comments(new_comments)

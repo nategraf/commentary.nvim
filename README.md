@@ -159,6 +159,7 @@ require('commentary').setup({
     picker = 'auto', -- 'auto', 'telescope', 'fzf-lua', or false
     -- Top-to-bottom thread order: 'activity', 'file', or a comparator function
     thread_sort = 'activity',
+    delete_threads_key = '<C-g>', -- Delete selected threads with confirmation
   },
   -- Keymaps (set to false to disable all keymaps)
   keymaps = {
@@ -372,6 +373,17 @@ line instead. A custom comparator receives thread entries containing `id`,
 `data`, and the computed `activity` timestamp; it should return `true` when its
 first argument should appear above its second. Use `:CommentaryList file` for a
 one-off file-and-line ordering without changing the configured default.
+
+In Telescope or fzf-lua, press `<C-g>` to delete all marked threads, or the
+current thread if none are marked. This removes each whole thread, including
+all replies. The confirmation lists thread/comment counts and sample locations;
+Cancel is the default. Configure `integrations.delete_threads_key` to change
+the shortcut (for example, `<C-e>`).
+
+After confirmation, the picker closes and reports how many threads and comments
+were deleted, including any failures. Reopen `<leader>rl` to see what remains.
+Canceling keeps Telescope open with its selection intact; fzf-lua closes before
+confirmation. Quickfix remains navigation-only.
 
 1. **[Telescope](https://github.com/nvim-telescope/telescope.nvim)** (if installed)
 
