@@ -178,7 +178,7 @@ local function jump_to_comment(comment)
   end
 
   local opened, err = pcall(function()
-    vim.cmd("edit " .. vim.fn.fnameescape(comment.file))
+    vim.cmd("edit " .. vim.fn.fnameescape(anchor.absolute_file(comment.file)))
   end)
   if not opened then
     vim.notify(
@@ -194,7 +194,9 @@ local function jump_to_comment(comment)
 end
 
 local function open_thread(thread_data)
-  if not jump_to_comment(thread_data.root_comment) then
+  -- A missing location must not make the review itself inaccessible. Only
+  -- attached threads navigate; detached threads open over the current buffer.
+  if anchor.is_attached(thread_data.root_comment) and not jump_to_comment(thread_data.root_comment) then
     return false
   end
 
@@ -216,7 +218,7 @@ local function comment_to_qf_item(comment)
 
   local attached = anchor.is_attached(comment)
   return {
-    filename = attached and comment.file or "",
+    filename = attached and anchor.absolute_file(comment.file) or "",
     lnum = attached and comment.line_start or 0,
     col = attached and 1 or 0,
     valid = attached and 1 or 0,
@@ -333,7 +335,7 @@ function M.list_with_telescope()
             value = comment,
             display = make_display,
             ordinal = string.format("%s:%d %s", comment.file, comment.line_start, comment.comment),
-            filename = comment.file,
+            filename = anchor.absolute_file(comment.file),
             lnum = comment.line_start,
             col = 1,
           }
@@ -598,7 +600,7 @@ function M.list_threads_with_quickfix(sort_mode)
 
     local attached = anchor.is_attached(root_comment)
     table.insert(qf_items, {
-      filename = attached and root_comment.file or "",
+      filename = attached and anchor.absolute_file(root_comment.file) or "",
       lnum = attached and root_comment.line_start or 0,
       col = attached and 1 or 0,
       valid = attached and 1 or 0,
@@ -878,7 +880,7 @@ function M.list_threads_with_telescope(sort_mode)
             value = thread_info,
             display = make_display,
             ordinal = ordinal,
-            filename = root_comment.file,
+            filename = anchor.absolute_file(root_comment.file),
             lnum = root_comment.line_start,
             col = 1,
           }
@@ -919,20 +921,11 @@ function M.list_threads(sort_mode)
   -- Opening the picker is an explicit request for the current review state.
   -- In particular, re-read existing thread files because changing their
   -- contents does not update the storage directory's mtime.
-  state.sync_from_storage()
-
-  -- Try Telescope first
-  if M.list_threads_with_telescope(sort_mode) then
-    return
-  end
-
-  -- Try fzf-lua
-  if M.list_threads_with_fzf_lua(sort_mode) then
-    return
-  end
-
-  -- Fallback to quickfix
-  M.list_threads_with_quickfix(sort_mode)
+  state.request_sync(function()
+    if not M.list_threads_with_telescope(sort_mode) and not M.list_threads_with_fzf_lua(sort_mode) then
+      M.list_threads_with_quickfix(sort_mode)
+    end
+  end)
 end
 
 M._comment_to_qf_item = comment_to_qf_item

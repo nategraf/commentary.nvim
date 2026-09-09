@@ -4,6 +4,10 @@ local M = {}
 local storage = nil
 local initialized = false
 local known_comments = nil
+local resolved_snapshot = nil
+local refresh_callbacks = {}
+local refresh_options = {}
+local project = nil
 
 local function comment_fingerprint(comment)
   return vim.json.encode({
@@ -106,18 +110,37 @@ end
 local function finish_change(source, reported_changes)
   local observed_changes = reconcile_comments(storage.get_all())
   local changes = reported_changes or observed_changes
+  if resolved_snapshot then
+    -- Editor writes are durable before this point. Reconcile their text and
+    -- identities immediately; location work can finish in the background.
+    local positions = {}
+    for _, comment in ipairs(resolved_snapshot) do positions[comment.id] = comment end
+    resolved_snapshot = vim.tbl_map(function(comment)
+      local old = positions[comment.id]
+      if old and vim.deep_equal(old.anchor, comment.anchor) then
+        for _, field in ipairs({ "file", "line_start", "line_end", "anchor_status", "anchor_reason", "anchor_resolved", "anchor_bufnr" }) do
+          comment[field] = old[field]
+        end
+      else
+        comment.anchor_status, comment.anchor_reason, comment.anchor_resolved = "detached", "pending", false
+      end
+      return comment
+    end, vim.deepcopy(storage.get_all()))
+    M.request_sync()
+  end
   M.refresh_ui()
   emit_changes(changes, source)
   return changes
 end
 
 --- Initialize storage backend
-function M.init()
+function M.init(background)
   if initialized then
     return
   end
 
   local config = require("commentary.config")
+  project = require("commentary.utils").get_project_root()
   local backend = config.get("comment.storage.backend")
 
   if backend == "file" then
@@ -126,9 +149,17 @@ function M.init()
     storage = require("commentary.storage.memory")
   end
 
+  if storage.reload then storage.reload() end
   storage.init()
-  remember_comments(storage.get_all())
+  if background then
+    resolved_snapshot = {}
+  else
+    remember_comments(storage.get_all())
+  end
   initialized = true
+  if background and backend == "file" then
+    require("commentary.watch").start(require("commentary.utils").get_storage_dir(config.get("comment.storage.file.dir")), M.request_sync)
+  end
 end
 
 --- Get storage backend
@@ -145,9 +176,9 @@ function M.is_active()
 end
 
 --- Refresh UI elements (markers, etc.) after state changes
-function M.refresh_ui()
+function M.refresh_ui(comments)
   -- Update visual indicators (signs and virtual text)
-  require("commentary.comment").update_indicators()
+  require("commentary.comment").update_indicators(comments)
 
   -- Future: Update other UI elements like statusline, floating windows, etc.
 end
@@ -163,6 +194,36 @@ function M.sync_from_storage(source)
   end
 
   return finish_change(source or "storage")
+end
+
+--- Nonblocking refresh for editor events. Keep the last complete snapshot
+--- visible and reject obsolete work after writes, edits, or project changes.
+function M.request_sync(callback, options)
+  if callback then table.insert(refresh_callbacks, callback) end
+  refresh_options = vim.tbl_extend("force", refresh_options, options or {})
+  refresh_options.on_error = function() refresh_callbacks = {} end
+  resolved_snapshot = resolved_snapshot or {}
+  local backend = get_storage()
+  local comments = backend ~= require("commentary.storage.file") and backend.get_all() or nil
+  require("commentary.refresh").request(comments, function(result)
+    if backend ~= storage then return end
+    if backend.accept_snapshot then backend.accept_snapshot(result.comments) end
+    local changes
+    if not known_comments then
+      remember_comments(result.comments)
+      changes = { added = {}, removed = {}, updated = {} }
+    else
+      changes = reconcile_comments(result.comments)
+    end
+    refresh_options = { evidence = result.evidence }
+    resolved_snapshot = result.resolved
+    require("commentary.anchor").apply_snapshot(resolved_snapshot)
+    M.refresh_ui(resolved_snapshot)
+    emit_changes(changes, "storage")
+    local callbacks = refresh_callbacks
+    refresh_callbacks = {}
+    for _, done in ipairs(callbacks) do done() end
+  end, refresh_options)
 end
 
 --- Clear all comments but keep session active
@@ -209,6 +270,9 @@ end
 --- Get all comments
 ---@return table[]
 function M.get_comments()
+  if resolved_snapshot then
+    return require("commentary.anchor").current_positions(resolved_snapshot)
+  end
   return require("commentary.anchor").resolve_all(get_storage().get_all())
 end
 
@@ -217,6 +281,39 @@ end
 ---@return table?
 function M.get_comment(id)
   return get_storage().get(id)
+end
+
+--- Reattach a complete thread, preserving its comments and identities.
+function M.reattach_thread(thread_id, context)
+  local backend = get_storage()
+  if backend.reload then
+    backend.reload()
+  end
+  local data = require("commentary.thread").build_thread_tree(backend.get_all())[thread_id]
+  if not data then
+    return false
+  end
+  local captured = require("commentary.anchor").capture(context)
+  local updates = {
+    file = captured.path,
+    line_start = context.line_start,
+    line_end = context.line_end,
+    context_lines = context.lines,
+    anchor = captured,
+  }
+  -- File storage keeps the location in shared thread frontmatter. Memory
+  -- storage keeps one copy per comment, so update replies there as well.
+  if not backend.update(data.root_comment.id, updates) then
+    return false
+  end
+  if backend == require("commentary.storage.memory") then
+    for _, reply in ipairs(data.replies) do
+      backend.update(reply.id, updates)
+    end
+  end
+  require("commentary.anchor").clear()
+  finish_change("editor")
+  return true
 end
 
 --- Update a comment
@@ -396,13 +493,22 @@ function M.get_storage()
   return get_storage()
 end
 
+function M.project_root() return project end
+
 --- Reset internal state (for testing purposes)
 ---@private
 function M._reset()
+  require("commentary.watch").stop()
+  require("commentary.refresh").cancel()
   require("commentary.anchor").clear()
+  require("commentary.comment").clear_indicators()
   initialized = false
   storage = nil
   known_comments = nil
+  resolved_snapshot = nil
+  refresh_callbacks = {}
+  refresh_options = {}
+  project = nil
 end
 
 return M

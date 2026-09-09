@@ -32,6 +32,11 @@ function M.format_thread(thread_info)
     "",
   }
 
+  if root.anchor_status == "detached" then
+    table.insert(lines, 6, "**Anchor**: detached (" .. (root.anchor_reason or "unresolved") .. ")")
+    table.insert(lines, 7, "Reattach from the desired source line/range with :CommentaryReattach.")
+  end
+
   for index, comment in ipairs(comments) do
     table.insert(lines, string.format("## Comment %d", index))
     table.insert(lines, "")

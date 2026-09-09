@@ -11,7 +11,7 @@ local utils = require("commentary.utils")
 ---@param opts table? User configuration
 function M.setup(opts)
   config.setup(opts or {})
-  state.init()
+  state.init(true)
   require("commentary.notification").setup()
 
   -- Create commands
@@ -56,6 +56,16 @@ function M.setup(opts)
       return { "activity", "file" }
     end,
   })
+
+  vim.api.nvim_create_user_command("CommentaryReattach", function(args)
+    M.reattach_thread(args.line1, args.line2, args.bang)
+  end, { range = true, bang = true, desc = "Attach a thread here; ! offers candidate locations in this file" })
+
+  vim.api.nvim_create_user_command("CommentaryRecover", function()
+    state.request_sync(function()
+      vim.notify("Commentary history recovery complete; inspect detached threads in :CommentaryList")
+    end, { recover = true })
+  end, { desc = "Recover missing anchor provenance from exact source hashes in recent Git history" })
 
   vim.api.nvim_create_user_command("CommentaryDeleteComment", function()
     M.delete_comment_at_cursor()
@@ -135,13 +145,14 @@ function M.setup(opts)
 
   -- Setup autocmd to sync state and update UI (only for file backend)
   if config.get("comment.storage.backend") == "file" then
-    -- TODO: Add a debounced vim.uv.new_fs_event watcher for the storage
-    -- directory so external comments load without waiting for an editor event.
     vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "CursorHold" }, {
       group = vim.api.nvim_create_augroup("CommentarySync", { clear = true }),
-      callback = function()
-        -- Sync from storage and update UI
-        require("commentary.state").sync_from_storage()
+      callback = function(args)
+        if args.event == "CursorHold" and require("commentary.watch").active() then
+          state.refresh_ui()
+        elseif vim.bo[args.buf].buftype == "" then
+          state.request_sync()
+        end
       end,
       desc = "Sync code review state and update UI",
     })
@@ -156,7 +167,7 @@ function M.setup(opts)
       anchor.invalidate_cache()
       vim.schedule(function()
         if vim.api.nvim_buf_is_valid(args.buf) then
-          state.sync_from_storage()
+          state.request_sync()
         end
       end)
     end,
@@ -172,11 +183,15 @@ function M.setup(opts)
   vim.api.nvim_create_autocmd("DirChanged", {
     group = anchor_group,
     callback = function()
-      anchor.clear()
-      state.sync_from_storage()
+      if state.project_root() ~= utils.get_project_root() then
+        state._reset()
+        state.init(true)
+      end
+      state.request_sync()
     end,
     desc = "Re-resolve code review anchors in the new project",
   })
+  state.request_sync()
 end
 
 local function attached_comment_lines()
@@ -413,6 +428,70 @@ end
 ---@param sort_mode? "activity"|"file"|fun(a: table, b: table): boolean
 function M.list_comments(sort_mode)
   require("commentary.list").list_threads(sort_mode)
+end
+
+--- Select a thread to attach to the current source line or Ex range.
+function M.reattach_thread(first, last, suggest)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  if name == "" or vim.bo[bufnr].buftype ~= "" then
+    vim.notify("Reattach from a source buffer, not a comment or picker buffer", vim.log.levels.WARN)
+    return
+  end
+  first = first or vim.api.nvim_win_get_cursor(0)[1]
+  last = last or first
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local context = {
+    bufnr = bufnr, file = utils.normalize_path(name),
+    line_start = first, line_end = last,
+    lines = vim.list_slice(lines, first, last),
+    before_lines = vim.list_slice(lines, math.max(1, first - 3), first - 1),
+    after_lines = vim.list_slice(lines, last + 1, math.min(#lines, last + 3)),
+  }
+  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local cwd = vim.fn.getcwd()
+  local function source_unchanged()
+    return vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_get_changedtick(bufnr) == tick
+      and vim.api.nvim_buf_get_name(bufnr) == name and vim.fn.getcwd() == cwd
+  end
+  local threads = require("commentary.thread").build_thread_tree(state.get_comments())
+  local choices = require("commentary.list")._sort_thread_list(threads, "file")
+  vim.ui.select(choices, {
+    prompt = string.format("Attach thread to %s:%d-%d", context.file, first, last),
+    format_item = require("commentary.list")._format_telescope_thread_entry,
+  }, function(choice)
+    if not choice then return end
+    if not source_unchanged() then
+      vim.notify("Source or project changed while selecting; run CommentaryReattach again", vim.log.levels.WARN)
+      return
+    end
+    local function attach(range)
+      if not range then return end
+      if not source_unchanged() then
+        vim.notify("Source or project changed; run CommentaryReattach again", vim.log.levels.WARN)
+        return
+      end
+      context.line_start, context.line_end = range.line_start, range.line_end
+      context.lines = vim.list_slice(lines, range.line_start, range.line_end)
+      context.before_lines = vim.list_slice(lines, math.max(1, range.line_start - 3), range.line_start - 1)
+      context.after_lines = vim.list_slice(lines, range.line_end + 1, math.min(#lines, range.line_end + 3))
+      if state.reattach_thread(choice.id, context) then
+        vim.notify("Review thread reattached")
+      else
+        vim.notify("Could not reattach thread; it may have been removed", vim.log.levels.ERROR)
+      end
+    end
+    if not suggest then return attach(context) end
+    local matches = require("commentary.anchor").candidates(choice.data.root_comment, bufnr)
+    if #matches == 0 then
+      vim.notify("No reliable candidates in this file; select a range and use :CommentaryReattach", vim.log.levels.INFO)
+      return
+    end
+    vim.ui.select(matches, {
+      prompt = "Choose the correct location (cancel to leave detached)",
+      format_item = function(item) return string.format("%d-%d: %s", item.line_start, item.line_end, item.text) end,
+    }, attach)
+  end)
 end
 
 --- Reply to a specific comment's thread

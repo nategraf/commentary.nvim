@@ -330,10 +330,23 @@ T["comment jump reports edit failures"] = function()
 
   MiniTest.expect.equality(call_ok, true)
   MiniTest.expect.equality(jumped, false)
-  MiniTest.expect.equality(command_seen, "edit file\\ with\\ spaces.lua")
+  MiniTest.expect.equality(command_seen, "edit " .. vim.fn.fnameescape(require("commentary.anchor").absolute_file("file with spaces.lua")))
   MiniTest.expect.equality(notification.level, vim.log.levels.ERROR)
   MiniTest.expect.match(notification.message, "Failed to open review comment target file with spaces.lua")
   MiniTest.expect.match(notification.message, "E325: ATTENTION")
+end
+
+T["detached threads open without navigating to a stale source location"] = function()
+  local ui = require("commentary.ui")
+  local old_show, shown = ui.show_comment_list, nil
+  local buf = vim.api.nvim_get_current_buf()
+  ui.show_comment_list = function(comments) shown = comments end
+  local root = { id = "gone", file = "missing.rs", line_start = 900, anchor_status = "detached" }
+  local ok, result = pcall(list._open_thread, { root_comment = root, replies = {} })
+  ui.show_comment_list = old_show
+  MiniTest.expect.equality({ ok, result }, { true, true })
+  MiniTest.expect.equality(shown, { root })
+  MiniTest.expect.equality(vim.api.nvim_get_current_buf(), buf)
 end
 
 return T

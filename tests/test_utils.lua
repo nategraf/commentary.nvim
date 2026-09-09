@@ -69,6 +69,22 @@ T["relative comment storage stays in the worktree"] = function()
 
   vim.fn.chdir(worktree)
   MiniTest.expect.equality(utils.get_storage_dir(".commentary"), vim.fs.joinpath(worktree, ".commentary"))
+  local config, state = require("commentary.config"), require("commentary.state")
+  state._reset()
+  config.setup({comment={storage={backend="file"}}, notifications={enabled=false}})
+  state.init(true)
+  local directory = worktree .. "/.commentary"
+  vim.fn.mkdir(directory, "p")
+  local review = require("commentary.storage.file").format_comment_as_markdown({
+    id="worktree", file="source.lua", line_start=1, line_end=1, timestamp=1, author="Test", comment="In worktree",
+  })
+  vim.fn.writefile(vim.split(review, "\n"), directory .. "/worktree.md")
+  local done = false
+  state.request_sync(function() done = true end)
+  MiniTest.expect.equality(vim.wait(5000, function() return done end, 10), true)
+  MiniTest.expect.equality(state.get_comments()[1].comment, "In worktree")
+  MiniTest.expect.equality(vim.fn.isdirectory(repository .. "/.commentary"), 0)
+  state._reset()
 end
 
 T["find_git_root ignores a symlinked .git marker"] = function()

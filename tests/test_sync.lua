@@ -165,6 +165,9 @@ T["opening the thread list reloads replies appended outside Neovim"] = function(
     return true
   end
   list.list_threads()
+  MiniTest.expect.equality(vim.wait(5000, function()
+    return not require("commentary.refresh").is_running()
+  end, 10), true)
   list.list_threads_with_telescope = original_telescope
 
   local comments = state.get_comments()

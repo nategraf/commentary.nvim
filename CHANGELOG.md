@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Exact historical source hashes can recover missing anchor provenance with `:CommentaryRecover`.
+- `:CommentaryReattach!` offers candidate locations in a user-chosen source file.
+- External storage updates are watched; malformed anchors and failed refreshes retain accessible review data.
+- Dirty-buffer provenance and diff projections across deletions are corrected; navigation respects repository roots.
+- Anchor attachment now has two states, attached and detached, with separate diagnostic reasons.
+- Storage refresh and anchor resolution run in a coalescing background worker.
+- Detached threads remain readable and actionable; `:CommentaryReattach` explicitly relocates a thread.
+- Live marks and Git provenance can disambiguate repeated text; surviving context can locate rewritten dirty selections.
 - Fork renamed to commentary.nvim
 - **BREAKING**: Lua modules moved from `code-review` to `commentary`
 - **BREAKING**: Commands, events, highlights, and internal buffer names now use the `Commentary` namespace

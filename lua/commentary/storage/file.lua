@@ -68,6 +68,10 @@ local function parse_comment_from_file(content, filename)
         local ok, decoded = pcall(vim.json.decode, frontmatter.anchor)
         if ok and type(decoded) == "table" then
           anchor = decoded
+        else
+          -- Preserve malformed metadata as such. Treating it as a legacy
+          -- anchor would silently attach the comment to its stale line.
+          anchor = frontmatter.anchor
         end
       end
       state = "content"
@@ -197,10 +201,12 @@ local function load_comments()
   local files = vim.fn.glob(dir .. "/*.md", false, true)
   for _, filepath in ipairs(files) do
     -- Use io.open to preserve trailing newlines
-    local file = io.open(filepath, "r")
+    local file, err = io.open(filepath, "r")
+    if not file then error("Cannot read review file " .. filepath .. ": " .. tostring(err)) end
     if file then
-      local content = file:read("*a")
+      local content, read_err = file:read("*a")
       file:close()
+      if not content then error("Cannot read review file " .. filepath .. ": " .. tostring(read_err)) end
 
       if content and #content > 0 then
         local filename = vim.fn.fnamemodify(filepath, ":t")
@@ -572,7 +578,15 @@ end
 
 --- Reload comments from storage (invalidate cache)
 function M.reload()
+  storage_dir = nil
   invalidate_cache()
+end
+
+--- Adopt a complete background read without touching the filesystem.
+function M.accept_snapshot(comments)
+  storage_dir = nil
+  comments_cache = comments
+  cache_timestamp = vim.fn.getftime(get_storage_dir())
 end
 
 --- Format a thread (multiple comments) as markdown

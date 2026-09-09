@@ -54,6 +54,42 @@ T["native diff projects insertions, modifications, and deletion"] = function()
   MiniTest.expect.equality(anchor._diff_projection(stored, base, "a\nb\nd\n"), { status = "deleted" })
 end
 
+T["diff projection handles deletions before and at both ends of a range"] = function()
+  local lines = { "a", "b", "c", "d", "e", "f", "g", "h" }
+  local base = table.concat(lines, "\n") .. "\n"
+  for deleted = 1, #lines do
+    local target = vim.deepcopy(lines)
+    table.remove(target, deleted)
+    for selected = 1, #lines do
+      local projected = anchor._diff_projection({ base_line_start = selected, base_line_end = selected },
+        base, table.concat(target, "\n") .. "\n")
+      if selected == deleted then
+        MiniTest.expect.equality(projected.status, "deleted")
+      else
+        MiniTest.expect.equality(projected, { status = "attached", line_start = selected - (deleted < selected and 1 or 0),
+          line_end = selected - (deleted < selected and 1 or 0) })
+      end
+    end
+  end
+  MiniTest.expect.equality(anchor._diff_projection({ base_line_start = 2, base_line_end = 6 }, base, "a\nd\ne\ng\nh\n"),
+    { status = "modified", line_start = 2, line_end = 3 })
+end
+
+T["malformed anchors stay detached without failing a batch"] = function()
+  local valid = { id = "test", file = "file.lua", line_start = 1, line_end = 1, comment = "Review" }
+  for _, invalid in ipairs({ "broken JSON", {}, { version = 1, path = "file.lua", selected = { 5 } },
+    { version = 1, path = "file.lua", start = 4 }, { version = 1, path = "file.lua", base_blob = "--help" } }) do
+    local comment = vim.tbl_extend("force", valid, { anchor = invalid })
+    local resolved = anchor.resolve_all({ comment, valid })
+    MiniTest.expect.equality(#resolved, 2)
+    MiniTest.expect.equality(resolved[1].anchor_reason, "invalid-anchor")
+  end
+  local malformed = file_storage.format_comment_as_markdown(vim.tbl_extend("force", valid, { anchor = {version=1} }))
+    :gsub('anchor: [^\n]+', 'anchor: {broken')
+  local parsed = file_storage._parse_comment_from_file(malformed, "invalid.md")
+  MiniTest.expect.equality(anchor.resolve(parsed[1]).anchor_reason, "invalid-anchor")
+end
+
 T["Git name-status parsing handles renames and deletion"] = function()
   MiniTest.expect.equality(anchor._parse_name_status("R100\0old.lua\0new.lua\0", "old.lua"), "new.lua")
   MiniTest.expect.equality(anchor._parse_name_status("D\0old.lua\0", "old.lua"), false)
@@ -204,7 +240,7 @@ Git["extmarks follow live edits and undo"] = function()
 
   vim.api.nvim_buf_set_lines(current_buf, 5, 6, false, { "local changed = one - two" })
   local changed = anchor.resolve(comment)
-  MiniTest.expect.equality({ changed.anchor_status, changed.line_start }, { "modified", 6 })
+  MiniTest.expect.equality({ changed.anchor_status, changed.anchor_reason, changed.line_start }, { "attached", "modified", 6 })
 
   vim.cmd("undo")
   local undone = anchor.resolve(comment)
@@ -218,7 +254,7 @@ Git["insertions within a multiline anchor expand its live range"] = function()
 
   vim.api.nvim_buf_set_lines(current_buf, 4, 4, false, { "-- inserted inside selection" })
   local expanded = anchor.resolve(comment)
-  MiniTest.expect.equality({ expanded.anchor_status, expanded.line_start, expanded.line_end }, { "modified", 4, 6 })
+  MiniTest.expect.equality({ expanded.anchor_status, expanded.line_start, expanded.line_end }, { "attached", 4, 6 })
 end
 
 
@@ -251,7 +287,7 @@ Git["resolves moves, modifications, deletions, and duplicate ambiguity"] = funct
   })
   anchor.clear()
   local modified = anchor.resolve(comment)
-  MiniTest.expect.equality({ modified.anchor_status, modified.line_start }, { "modified", 5 })
+  MiniTest.expect.equality({ modified.anchor_status, modified.anchor_reason, modified.line_start }, { "attached", "modified", 5 })
 
   write_file("source.lua", {
     "local one = 1",
@@ -262,7 +298,7 @@ Git["resolves moves, modifications, deletions, and duplicate ambiguity"] = funct
     "-- footer",
   })
   anchor.clear()
-  MiniTest.expect.equality(anchor.resolve(comment).anchor_status, "deleted")
+  MiniTest.expect.equality(anchor.resolve(comment).anchor_reason, "deleted")
 
   local original = {
     "local one = 1",
@@ -277,7 +313,11 @@ Git["resolves moves, modifications, deletions, and duplicate ambiguity"] = funct
   vim.list_extend(duplicate, original)
   write_file("source.lua", duplicate)
   anchor.clear()
-  MiniTest.expect.equality(anchor.resolve(comment).anchor_status, "ambiguous")
+  -- Git proves the original range survived; duplicate text is not by itself
+  -- ambiguous when provenance is available.
+  MiniTest.expect.equality(anchor.resolve(comment).anchor_status, "attached")
+  comment.anchor.base_blob = nil
+  MiniTest.expect.equality(anchor.resolve(comment).anchor_reason, "ambiguous")
 end
 
 
@@ -313,7 +353,7 @@ end
 Git["uses content anchors for comments created from dirty buffers"] = function()
   vim.api.nvim_buf_set_lines(current_buf, 0, 0, false, { "-- unsaved header" })
   local comment = make_comment(6)
-  MiniTest.expect.equality(comment.anchor.base_line_start, nil)
+  MiniTest.expect.equality(comment.anchor.base_line_start, 5)
 
   anchor.clear()
   local initial = anchor.resolve(comment)
@@ -368,7 +408,7 @@ Git["reports missing files and keeps legacy comments usable"] = function()
   current_buf = nil
   vim.fn.delete(repo .. "/source.lua")
   anchor.clear()
-  MiniTest.expect.equality(anchor.resolve(comment).anchor_status, "missing-file")
+  MiniTest.expect.equality(anchor.resolve(comment).anchor_reason, "missing-file")
 
   write_file("source.lua", { "first", "legacy target", "last" })
   local legacy = {
@@ -385,5 +425,99 @@ Git["reports missing files and keeps legacy comments usable"] = function()
 end
 
 T["Git-backed resolution"] = Git
+
+Git["surviving context recovers a rewritten dirty selection"] = function()
+  vim.api.nvim_buf_set_lines(current_buf, 4, 5, false, { "local dirty = true" })
+  local comment = make_comment(5)
+  vim.api.nvim_buf_set_lines(current_buf, 4, 5, false, { "local revised = true" })
+  anchor.clear()
+  local resolved = anchor.resolve(comment)
+  MiniTest.expect.equality({ resolved.anchor_status, resolved.anchor_reason, resolved.line_start }, { "attached", "modified", 5 })
+  vim.api.nvim_buf_set_lines(current_buf, 4, 5, false, {})
+  anchor.clear()
+  MiniTest.expect.equality(anchor.resolve(comment).anchor_reason, "deleted")
+end
+
+Git["live marks disambiguate duplicated text without Git coordinates"] = function()
+  local comment = make_comment(5)
+  comment.anchor.base_blob = nil
+  anchor.resolve(comment)
+  local original = vim.api.nvim_buf_get_lines(current_buf, 0, -1, false)
+  vim.api.nvim_buf_set_lines(current_buf, -1, -1, false, original)
+  local resolved = anchor.resolve(comment)
+  MiniTest.expect.equality({ resolved.anchor_status, resolved.line_start }, { "attached", 5 })
+end
+
+Git["background snapshots preserve deleted extmarks for undo"] = function()
+  local comment = make_comment(5)
+  anchor.resolve(comment)
+  vim.api.nvim_buf_set_lines(current_buf, 4, 5, false, {})
+  local snapshot = { anchor.resolve(comment) }
+  anchor.apply_snapshot(snapshot)
+  MiniTest.expect.equality(anchor.current_positions(snapshot)[1].anchor_status, "detached")
+  vim.cmd("undo")
+  local restored = anchor.current_positions(snapshot)[1]
+  MiniTest.expect.equality({ restored.anchor_status, restored.line_start }, { "attached", 5 })
+end
+
+Git["exact historical snapshots recover dirty anchors without writing metadata"] = function()
+  vim.api.nvim_buf_set_lines(current_buf, 4, 5, false, { "local introduced = true" })
+  local comment = make_comment(5)
+  comment.anchor.before, comment.anchor.after = {}, {}
+  MiniTest.expect.equality(comment.anchor.base_line_start, nil)
+  write_file("source.lua", vim.api.nvim_buf_get_lines(current_buf, 0, -1, false))
+  git({ "add", "source.lua" })
+  git({ "commit", "-q", "-m", "record formerly dirty source" })
+  vim.api.nvim_buf_set_lines(current_buf, 4, 5, false, { "local revised = false" })
+  local recovered, evidence = require("commentary.history").recover({comment}, repo, {}, true)
+  MiniTest.expect.equality(vim.tbl_count(evidence), 1)
+  MiniTest.expect.equality(comment.anchor.base_line_start, nil)
+  local resolved = anchor.resolve(recovered[1])
+  MiniTest.expect.equality({ resolved.anchor_status, resolved.line_start }, { "attached", 5 })
+  local cached = require("commentary.history").recover({comment}, repo, evidence, false)
+  MiniTest.expect.equality(cached, recovered)
+end
+
+Git["candidate locations expose duplicate occurrences for explicit selection"] = function()
+  local comment = make_comment(5)
+  local lines = vim.api.nvim_buf_get_lines(current_buf, 0, -1, false)
+  vim.api.nvim_buf_set_lines(current_buf, -1, -1, false, lines)
+  local candidates = anchor.candidates(comment, current_buf)
+  MiniTest.expect.equality(#candidates, 2)
+  MiniTest.expect.equality({ candidates[1].line_start, candidates[2].line_start }, { 5, 12 })
+end
+
+Git["source navigation is rooted in the project, not the current subdirectory"] = function()
+  local comment = make_comment(5)
+  vim.fn.mkdir(repo .. "/nested", "p")
+  vim.fn.chdir(repo .. "/nested")
+  MiniTest.expect.equality(require("commentary.list")._jump_to_comment(comment), true)
+  MiniTest.expect.equality(vim.api.nvim_buf_get_name(0), repo .. "/source.lua")
+end
+
+Git["full snapshot prototype resolves new-file ambiguity that context cannot"] = function()
+  local source_lines = vim.api.nvim_buf_get_lines(current_buf, 0, -1, false)
+  vim.list_extend(source_lines, vim.deepcopy(source_lines))
+  vim.api.nvim_buf_delete(current_buf, {force=true})
+  current_buf = vim.api.nvim_create_buf(true, false)
+  vim.api.nvim_buf_set_name(current_buf, repo .. "/uncommitted.lua")
+  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, source_lines)
+  local comment = make_comment(5)
+  comment.file = "uncommitted.lua"
+  MiniTest.expect.equality(comment.anchor.base_blob, nil)
+  -- This object is only a prototype in the temporary test repository. Product
+  -- snapshots need independent retention: unreferenced Git objects can be GC'd.
+  local source = table.concat(source_lines, "\n") .. "\n"
+  local result = vim.system({"git", "-C", repo, "hash-object", "-w", "--stdin"}, {stdin=source, text=true}):wait()
+  MiniTest.expect.equality(result.code, 0)
+  vim.api.nvim_buf_set_lines(current_buf, 0, 0, false, {"-- new header"})
+  anchor.clear()
+  MiniTest.expect.equality(anchor.resolve(comment).anchor_reason, "ambiguous")
+  local snapshot_comment = vim.deepcopy(comment)
+  snapshot_comment.anchor.base_blob = vim.trim(result.stdout)
+  snapshot_comment.anchor.base_line_start, snapshot_comment.anchor.base_line_end = 5, 5
+  local recovered = anchor.resolve(snapshot_comment)
+  MiniTest.expect.equality({recovered.anchor_status, recovered.line_start}, {"attached", 6})
+end
 
 return T

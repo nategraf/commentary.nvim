@@ -14,6 +14,7 @@ local ns_context = vim.api.nvim_create_namespace("commentary_context")
 function M.add(context_lines)
   -- Get the current selection context
   local context = utils.get_selection_context(context_lines)
+  local captured_anchor = anchor.capture(context)
 
   -- Create namespace for highlighting
   local bufnr = vim.api.nvim_get_current_buf()
@@ -48,7 +49,7 @@ function M.add(context_lines)
       line_end = context.line_end,
       comment = comment_text,
       context_lines = context.lines,
-      anchor = anchor.capture(context),
+      anchor = captured_anchor,
     }
 
     -- Add to state (state will handle UI refresh)
@@ -79,18 +80,19 @@ local add_signs
 local add_virtual_text
 
 --- Update visual indicators (signs and virtual text)
-function M.update_indicators()
+function M.update_indicators(comments)
   local config = require("commentary.config")
-  local comments = state.get_comments()
+  comments = comments or state.get_comments()
 
   -- Clear existing indicators
   M.clear_indicators()
 
   -- Group comments by buffer
   local comments_by_buf = {}
+  local buffers = anchor.buffer_map()
   for _, comment in ipairs(comments) do
     if anchor.is_attached(comment) then
-      local bufnr = comment.anchor_bufnr or anchor.find_buffer(comment.file)
+      local bufnr = comment.anchor_bufnr or buffers[comment.file]
       if bufnr then
         comments_by_buf[bufnr] = comments_by_buf[bufnr] or {}
         table.insert(comments_by_buf[bufnr], comment)
@@ -148,8 +150,9 @@ add_signs = function(bufnr, comments)
   })
 
   local lines = {}
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
   for _, comment in ipairs(comments) do
-    for line = comment.line_start, comment.line_end do
+    for line = math.max(1, comment.line_start), math.min(comment.line_end, line_count) do
       lines[line] = true
     end
   end

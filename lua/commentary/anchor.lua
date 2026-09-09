@@ -6,6 +6,8 @@ local live = {}
 local path_cache = {}
 local diff_cache = {}
 local root_cache = {}
+local buffer_cache = {}
+local content_cache = {}
 
 local function run_git(root, args)
   if not root or root == "" then
@@ -62,11 +64,17 @@ local function path_available(root, path)
 end
 
 local function buffer_text(bufnr)
+  local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  local cached = buffer_cache[bufnr]
+  if cached and cached.tick == tick and cached.endofline == vim.bo[bufnr].endofline then
+    return cached.text, cached.lines
+  end
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local text = table.concat(lines, "\n")
   if vim.bo[bufnr].endofline then
     text = text .. "\n"
   end
+  buffer_cache[bufnr] = { tick = tick, text = text, lines = lines, endofline = vim.bo[bufnr].endofline }
   return text, lines
 end
 
@@ -90,6 +98,46 @@ end
 
 local function hash(text)
   return vim.fn.sha256(text)
+end
+
+local function positive_integer(value)
+  return type(value) == "number" and value >= 1 and value < math.huge and value == math.floor(value)
+end
+
+--- Reject malformed metadata without hiding the comment or crashing a batch.
+function M.valid(comment)
+  if type(comment.file) ~= "string" or comment.file == "" or comment.file:find("\0", 1, true)
+    or not positive_integer(comment.line_start) or not positive_integer(comment.line_end)
+    or comment.line_end < comment.line_start then
+    return false
+  end
+  local stored = comment.anchor
+  if stored == nil then return true end
+  if type(stored) ~= "table" or stored.version ~= 1 or type(stored.path) ~= "string" or stored.path == ""
+    or stored.path:find("\0", 1, true) then return false end
+  for _, field in ipairs({ "selected", "before", "after" }) do
+    if stored[field] ~= nil then
+      if type(stored[field]) ~= "table" or not vim.islist(stored[field]) then return false end
+      for _, line in ipairs(stored[field]) do
+        if type(line) ~= "string" then return false end
+      end
+    end
+  end
+  for _, field in ipairs({ "start", "finish" }) do
+    if stored[field] ~= nil and (type(stored[field]) ~= "table" or not positive_integer(stored[field].line)) then
+      return false
+    end
+  end
+  if stored.start and stored.finish and stored.finish.line < stored.start.line then return false end
+  if (stored.base_line_start ~= nil or stored.base_line_end ~= nil)
+    and (not positive_integer(stored.base_line_start) or not positive_integer(stored.base_line_end)
+      or stored.base_line_end < stored.base_line_start) then return false end
+  for _, field in ipairs({ "base_commit", "base_blob", "buffer_hash" }) do
+    if stored[field] ~= nil and (type(stored[field]) ~= "string" or not stored[field]:match("^%x+$")) then
+      return false
+    end
+  end
+  return true
 end
 
 local function anchor_key(comment)
@@ -198,6 +246,42 @@ local function choose_candidate(candidates)
   return candidates[1], false
 end
 
+-- Surviving context can identify a rewritten selection even when it was
+-- created in an uncommitted/new file. Require both complete context blocks and
+-- a unique bounded gap; never use proximity to the stale line as evidence.
+local function context_range(anchor, lines)
+  local before, after = anchor.before or {}, anchor.after or {}
+  if #before == 0 or #after == 0 then return nil end
+  local starts = content_candidates({ selected = before }, lines, false)
+  local ends = content_candidates({ selected = after }, lines, false)
+  local found
+  for _, left in ipairs(starts) do
+    for _, right in ipairs(ends) do
+      local first, last = left.line_end + 1, right.line_start - 1
+      if last >= first - 1 and last - first < math.max(20, #(anchor.selected or {}) * 4) then
+        if found then return nil end
+        found = { line_start = first, line_end = last, status = last < first and "deleted" or "modified" }
+      end
+    end
+  end
+  return found
+end
+
+--- Candidate locations in a user-chosen buffer. Never auto-accept a candidate.
+function M.candidates(comment, bufnr)
+  if not M.valid(comment) then return {} end
+  local stored = comment.anchor or { selected = comment.context_lines or {} }
+  local _, lines = buffer_text(bufnr)
+  local candidates = content_candidates(stored, lines, false)
+  if #candidates == 0 then candidates = content_candidates(stored, lines, true) end
+  if #candidates == 0 then
+    local surrounded = context_range(stored, lines)
+    if surrounded and surrounded.status ~= "deleted" then candidates = { surrounded } end
+  end
+  for _, candidate in ipairs(candidates) do candidate.text = lines[candidate.line_start] end
+  return candidates
+end
+
 local function parse_name_status(output, original_path)
   if not output or output == "" then
     return nil
@@ -278,25 +362,30 @@ local function find_buffer(root, path)
 end
 
 local function target_content(root, path)
+  local key = absolute_path(root, path)
+  if content_cache[key] ~= nil then return content_cache[key] or nil end
   local bufnr = find_buffer(root, path)
   if bufnr then
     local text, lines = buffer_text(bufnr)
-    return {
+    content_cache[key] = {
       bufnr = bufnr,
       text = text,
       lines = lines,
     }
+    return content_cache[key]
   end
 
   local full_path = absolute_path(root, path)
   local text = read_text(full_path)
   if not text then
+    content_cache[key] = false
     return nil
   end
-  return {
+  content_cache[key] = {
     text = text,
     lines = text_lines(text),
   }
+  return content_cache[key]
 end
 
 local function diff_function()
@@ -313,62 +402,41 @@ local function diff_projection(anchor, base_text, target_text)
     algorithm = "histogram",
     linematch = true,
   })
-  local mapped = {}
-  local changed = false
-  local old_cursor = 1
-  local new_cursor = 1
-
+  local first, last = anchor.base_line_start, anchor.base_line_end
+  local cursor, delta, changed = 1, 0, false
+  local line_start, line_end
+  local function include(start_line, end_line)
+    line_start = line_start or start_line
+    line_end = end_line
+  end
+  local function unchanged(start_line, end_line)
+    start_line, end_line = math.max(first, start_line), math.min(last, end_line)
+    if start_line <= end_line then include(start_line + delta, end_line + delta) end
+  end
+  -- Map intervals, not every source line. Empty hunks use the line *before*
+  -- insertion/deletion; treating that coordinate as a normal line was off by
+  -- one after deletions, including when mapping a dirty buffer back to Git.
   for _, hunk in ipairs(hunks) do
     local old_start, old_count, new_start, new_count = unpack(hunk)
-    while old_cursor < old_start do
-      mapped[old_cursor] = new_cursor
-      old_cursor = old_cursor + 1
-      new_cursor = new_cursor + 1
-    end
-
+    local boundary = old_start + (old_count == 0 and 1 or 0)
+    unchanged(cursor, boundary - 1)
     if old_count == 0 then
-      while old_cursor <= old_start do
-        mapped[old_cursor] = new_cursor
-        old_cursor = old_cursor + 1
-        new_cursor = new_cursor + 1
-      end
-      if old_start >= anchor.base_line_start and old_start < anchor.base_line_end then
+      if first < boundary and boundary <= last then
         changed = true
+        include(new_start, new_start + new_count - 1)
       end
-      new_cursor = new_cursor + new_count
-    else
-      local old_end = old_start + old_count - 1
-      if old_start <= anchor.base_line_end and old_end >= anchor.base_line_start then
-        changed = true
+    elseif old_start <= last and old_start + old_count > first then
+      changed = true
+      if new_count > 0 then
+        include(new_start + math.min(math.max(first - old_start, 0), new_count - 1),
+          new_start + math.min(math.min(last - old_start, old_count - 1), new_count - 1))
       end
-      for offset = 0, old_count - 1 do
-        if new_count > 0 then
-          local target_offset = math.min(offset, new_count - 1)
-          mapped[old_start + offset] = new_start + target_offset
-        end
-      end
-      old_cursor = old_start + old_count
-      new_cursor = new_start + new_count
     end
+    delta = delta + new_count - old_count
+    cursor = boundary + old_count
   end
-
-  local base_line_count = #text_lines(base_text)
-  while old_cursor <= base_line_count do
-    mapped[old_cursor] = new_cursor
-    old_cursor = old_cursor + 1
-    new_cursor = new_cursor + 1
-  end
-
-  local line_start = mapped[anchor.base_line_start]
-  local line_end = mapped[anchor.base_line_end]
-  if not line_start and not line_end then
-    return { status = "deleted" }
-  end
-  line_start = line_start or line_end
-  line_end = line_end or line_start
-  if line_end < line_start then
-    line_start, line_end = line_end, line_start
-  end
+  unchanged(cursor, last)
+  if not line_start then return { status = "deleted" } end
   return {
     status = changed and "modified" or "attached",
     line_start = line_start,
@@ -378,11 +446,13 @@ end
 
 local function resolution(comment, path, status, line_start, line_end, bufnr)
   local resolved = vim.deepcopy(comment)
-  resolved.file = path or comment.file
-  resolved.line_start = line_start or comment.line_start
-  resolved.line_end = line_end or comment.line_end
-  resolved.anchor_status = status
+  resolved.file = type(path or comment.file) == "string" and (path or comment.file) or ""
+  resolved.line_start = positive_integer(line_start or comment.line_start) and (line_start or comment.line_start) or 1
+  resolved.line_end = positive_integer(line_end or comment.line_end) and (line_end or comment.line_end) or resolved.line_start
+  resolved.line_end = math.max(resolved.line_start, resolved.line_end)
   resolved.anchor_resolved = status == "attached" or status == "modified"
+  resolved.anchor_status = resolved.anchor_resolved and "attached" or "detached"
+  resolved.anchor_reason = status
   resolved.anchor_bufnr = bufnr
   return resolved
 end
@@ -471,10 +541,12 @@ local function live_resolution(comment)
   local anchor = comment.anchor or legacy_anchor(comment)
   if #(anchor.selected or {}) > 0 then
     local current_text, current_lines = buffer_text(record.bufnr)
-    local exact, exact_ambiguous = choose_candidate(content_candidates(anchor, current_lines, false))
-    if exact_ambiguous then
-      return resolution(comment, record.path, "ambiguous")
+    if range.status ~= "deleted" and same_lines(
+      vim.list_slice(current_lines, range.line_start, range.line_end), anchor.selected, false
+    ) then
+      return resolution(comment, record.path, "attached", range.line_start, range.line_end, record.bufnr)
     end
+    local exact, exact_ambiguous = choose_candidate(content_candidates(anchor, current_lines, false))
     if exact then
       move_extmark(record, exact.line_start, exact.line_end)
       record.status = "attached"
@@ -482,9 +554,6 @@ local function live_resolution(comment)
     end
 
     local normalized, normalized_ambiguous = choose_candidate(content_candidates(anchor, current_lines, true))
-    if normalized_ambiguous then
-      return resolution(comment, record.path, "ambiguous")
-    end
     if normalized then
       move_extmark(record, normalized.line_start, normalized.line_end)
       record.status = "modified"
@@ -507,7 +576,7 @@ local function live_resolution(comment)
         record.bufnr
       )
     end
-    return resolution(comment, record.path, "deleted")
+    return resolution(comment, record.path, (exact_ambiguous or normalized_ambiguous) and "ambiguous" or "deleted")
   end
   return resolution(comment, record.path, range.status, range.line_start, range.line_end, record.bufnr)
 end
@@ -547,11 +616,12 @@ local function bind_extmark(comment)
     bufnr = bufnr,
     id = id,
     path = comment.file,
-    status = comment.anchor_status,
+    status = comment.anchor_reason or comment.anchor_status,
     allow_empty = allow_empty,
     snapshot_text = snapshot_text,
     snapshot_line_start = comment.line_start,
     snapshot_line_end = comment.line_end,
+    anchor = vim.deepcopy(comment.anchor),
   }
 end
 
@@ -583,6 +653,12 @@ function M.capture(context)
   local base_text = base_blob and run_git(root, { "cat-file", "blob", base_blob }) or nil
   local clean = base_text ~= nil and base_text == text
 
+  -- Edits elsewhere in a file should not discard usable Git provenance.
+  -- Project backwards only if the selected range itself is unchanged.
+  local base_range = clean and { status = "attached", line_start = context.line_start, line_end = context.line_end }
+    or (base_text and diff_projection({ base_line_start = context.line_start, base_line_end = context.line_end }, text, base_text))
+  if base_range and base_range.status ~= "attached" then base_range = nil end
+
   return {
     version = 1,
     path = path,
@@ -591,8 +667,8 @@ function M.capture(context)
     buffer_hash = hash(text),
     start = { line = context.line_start, column = context.start_col or 0 },
     finish = { line = context.line_end, column = context.end_col or 0 },
-    base_line_start = clean and context.line_start or nil,
-    base_line_end = clean and context.line_end or nil,
+    base_line_start = base_range and base_range.line_start or nil,
+    base_line_end = base_range and base_range.line_end or nil,
     selected = vim.deepcopy(context.lines or {}),
     before = vim.deepcopy(context.before_lines or {}),
     after = vim.deepcopy(context.after_lines or {}),
@@ -604,9 +680,13 @@ end
 ---@param preserve_cache boolean? Keep the current batch's Git path cache
 ---@return table
 function M.resolve(comment, preserve_cache)
+  if not M.valid(comment) then
+    return resolution(comment, nil, "invalid-anchor")
+  end
   if not preserve_cache then
     path_cache = {}
     diff_cache = {}
+    content_cache = {}
   end
   local live_comment = live_resolution(comment)
   if live_comment then
@@ -654,9 +734,6 @@ function M.resolve(comment, preserve_cache)
 
   local exact_candidates = content_candidates(anchor, target.lines, false)
   local exact, exact_ambiguous = choose_candidate(exact_candidates)
-  if exact_ambiguous then
-    return resolution(comment, path, "ambiguous")
-  end
   if exact then
     local resolved = resolution(comment, path, "attached", exact.line_start, exact.line_end, target.bufnr)
     bind_extmark(resolved)
@@ -665,9 +742,6 @@ function M.resolve(comment, preserve_cache)
 
   local normalized_candidates = content_candidates(anchor, target.lines, true)
   local normalized, normalized_ambiguous = choose_candidate(normalized_candidates)
-  if normalized_ambiguous then
-    return resolution(comment, path, "ambiguous")
-  end
   if normalized then
     local resolved = resolution(comment, path, "modified", normalized.line_start, normalized.line_end, target.bufnr)
     bind_extmark(resolved)
@@ -681,7 +755,11 @@ function M.resolve(comment, preserve_cache)
       projected = diff_projection(anchor, base_text, target.text)
     end
   end
-  if projected and projected.status == "modified" then
+  if projected and projected.status == "attached" then
+    local resolved = resolution(comment, path, "attached", projected.line_start, projected.line_end, target.bufnr)
+    bind_extmark(resolved)
+    return resolved
+  elseif projected and projected.status == "modified" and not exact_ambiguous and not normalized_ambiguous then
     local score = context_score(anchor, target.lines, projected.line_start, projected.line_end, false)
     local has_context = #(anchor.before or {}) + #(anchor.after or {}) > 0
     if score > 0 or not has_context then
@@ -700,6 +778,16 @@ function M.resolve(comment, preserve_cache)
     return resolution(comment, path, "deleted")
   end
 
+  if exact_ambiguous or normalized_ambiguous then
+    return resolution(comment, path, "ambiguous")
+  end
+  local surrounded = context_range(anchor, target.lines)
+  if surrounded then
+    local resolved = resolution(comment, path, surrounded.status, surrounded.line_start, surrounded.line_end, target.bufnr)
+    bind_extmark(resolved)
+    return resolved
+  end
+
   if anchor.version == 0 and comment.line_start <= #target.lines then
     local resolved = resolution(comment, path, "modified", comment.line_start, comment.line_end, target.bufnr)
     bind_extmark(resolved)
@@ -714,9 +802,28 @@ function M.resolve_all(comments)
   -- not repeat Git work without retaining stale path mappings across refreshes.
   path_cache = {}
   diff_cache = {}
+  content_cache = {}
   local resolved = {}
+  local threads = {}
   for _, comment in ipairs(comments) do
-    table.insert(resolved, M.resolve(comment, true))
+    local key = anchor_key(comment)
+    local previous = key and threads[key]
+    if previous and vim.deep_equal(previous.anchor, comment.anchor) then
+      local copy = vim.deepcopy(comment)
+      for _, field in ipairs({ "file", "line_start", "line_end", "anchor_status", "anchor_reason", "anchor_resolved", "anchor_bufnr" }) do
+        copy[field] = previous[field]
+      end
+      table.insert(resolved, copy)
+    else
+      local ok, result = pcall(M.resolve, comment, true)
+      if not ok then
+        local err = result
+        result = resolution(comment, nil, "resolution-error")
+        result.anchor_error = tostring(err)
+      end
+      if key then threads[key] = result end
+      table.insert(resolved, result)
+    end
   end
   return resolved
 end
@@ -725,12 +832,87 @@ function M.is_attached(comment)
   return comment.anchor_status == nil or comment.anchor_status == "attached" or comment.anchor_status == "modified"
 end
 
+--- Install a worker result; Neovim objects belong only to the editor process.
+function M.apply_snapshot(comments)
+  local retained = {}
+  local buffers = M.buffer_map()
+  for _, comment in ipairs(comments) do
+    local key = anchor_key(comment)
+    local record = key and live[key]
+    local range = record and range_from_extmark(record)
+    if range and record.path == comment.file and vim.deep_equal(record.anchor, comment.anchor) then
+      -- Extmarks are stronger evidence than a new content search, including
+      -- ambiguous duplicate lines. Retain invalid marks too: undo restores
+      -- them, whereas replacing them on each refresh loses that history.
+      comment.anchor_bufnr = record.bufnr
+      comment.line_start = range.line_start or comment.line_start
+      comment.line_end = range.line_end or comment.line_end
+      comment.anchor_resolved = range.status ~= "deleted"
+      comment.anchor_status = comment.anchor_resolved and "attached" or "detached"
+      comment.anchor_reason = range.status
+    else
+      if record and vim.api.nvim_buf_is_valid(record.bufnr) then
+        pcall(vim.api.nvim_buf_del_extmark, record.bufnr, ns, record.id)
+      end
+      if key then live[key] = nil end
+      comment.anchor_bufnr = buffers[comment.file]
+      bind_extmark(comment)
+    end
+    if key then retained[key] = true end
+  end
+  for key, record in pairs(live) do
+    if not retained[key] then
+      if vim.api.nvim_buf_is_valid(record.bufnr) then
+        pcall(vim.api.nvim_buf_del_extmark, record.bufnr, ns, record.id)
+      end
+      live[key] = nil
+    end
+  end
+end
+
+--- Read moving extmark positions without Git, disk IO, or content scans.
+function M.current_positions(comments)
+  local result = vim.deepcopy(comments)
+  for _, comment in ipairs(result) do
+    local record = live[anchor_key(comment)]
+    local range = record and range_from_extmark(record)
+    if range then
+      comment.line_start = range.line_start or comment.line_start
+      comment.line_end = range.line_end or comment.line_end
+      comment.anchor_resolved = range.status ~= "deleted"
+      comment.anchor_status = comment.anchor_resolved and "attached" or "detached"
+      comment.anchor_reason = range.status
+    end
+  end
+  return result
+end
+
 function M.find_buffer(path)
   local root = git_root(vim.fn.getcwd()) or vim.fn.getcwd()
   return find_buffer(root, path)
 end
 
+function M.absolute_file(path)
+  return absolute_path(git_root(vim.fn.getcwd()) or vim.fn.getcwd(), path)
+end
+
+function M.buffer_map()
+  local root = git_root(vim.fn.getcwd()) or vim.fn.getcwd()
+  local buffers = {}
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) then
+      local name = vim.api.nvim_buf_get_name(bufnr)
+      if name ~= "" then
+        buffers[name] = bufnr
+        buffers[relative_path(root, name)] = bufnr
+      end
+    end
+  end
+  return buffers
+end
+
 function M.detach_buffer(bufnr)
+  buffer_cache[bufnr] = nil
   for key, record in pairs(live) do
     if record.bufnr == bufnr then
       live[key] = nil
@@ -745,6 +927,7 @@ function M.invalidate_cache()
   path_cache = {}
   diff_cache = {}
   root_cache = {}
+  content_cache = {}
 end
 
 function M.clear()
@@ -757,6 +940,8 @@ function M.clear()
   path_cache = {}
   diff_cache = {}
   root_cache = {}
+  buffer_cache = {}
+  content_cache = {}
 end
 
 M._content_candidates = content_candidates

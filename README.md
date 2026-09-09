@@ -295,6 +295,8 @@ end
 | `:CommentaryComment [lines]` | `<leader>rc`   | Add comment at cursor/selection with optional context lines |
 | `:CommentaryShowComment`     | `<leader>rs`   | Show comments at cursor position                            |
 | `:CommentaryList [sort]`     | `<leader>rl`   | List threads by `activity` or `file`                         |
+| `:[range]CommentaryReattach[!]` | —           | Reattach a thread here; `!` offers candidates in this file   |
+| `:CommentaryRecover`        | —             | Search recent Git history for exact source snapshots        |
 | `:CommentaryPreview`         | `<leader>rp`   | Open preview window with editable content                   |
 | `:CommentarySave [path]`     | `<leader>rw`   | Save review to file                                         |
 | `:CommentaryCopy`            | `<leader>ry`   | Copy review to clipboard                                    |
@@ -510,9 +512,52 @@ New comments store a versioned anchor alongside the original file and line metad
 - Moved or modified code, using exact/context matching and Neovim's native diff
 - Git-detected file renames and checkout changes
 
-Persisted `line_start` and `line_end` values remain unchanged, so existing review files and external tooling stay compatible. Resolved positions are computed when comments are displayed or navigated. Review files created by older versions, without an `anchor` field, continue to use their stored context and location.
+Automatic resolution leaves persisted locations unchanged. Review files created by older versions, without an `anchor` field, continue to use their stored context and location.
 
-Resolution is deliberately conservative. A picker labels comments as `[modified]`, `[ambiguous]`, `[deleted]`, `[missing-file]`, or `[unresolved]` when appropriate. Modified comments remain navigable; unresolved states do not jump to a potentially unrelated line. Fuzzy matching and parser-aware matching are intentionally not used, avoiding plausible but incorrect reattachments.
+There are two attachment states: **attached** and **detached**. Detached threads
+are labeled `[detached]` in the picker; their preview explains the reason
+(ambiguous text, missing file, deleted range, or no reliable match). These are
+diagnostics, not workflow states. Opening a detached thread shows its comments
+without jumping to a stale source location. Editing, replying, and deletion
+remain available, including `<C-g>` thread deletion in the picker.
+
+To reattach a thread, move to the desired source line and run
+`:CommentaryReattach`, then select the thread. A visual selection or Ex range
+(e.g. `:10,15CommentaryReattach`) attaches to that range. This explicitly replaces
+the thread's stored location and anchor, preserving its comments and replies.
+Canceling the selection changes nothing. No additional default key is reserved.
+
+If you know the file but not the line, use `:CommentaryReattach!`. After selecting
+a thread, choose among matching locations in the current source buffer. This
+also works when an uncommitted file was renamed and Git cannot identify it.
+Candidates are never accepted automatically; if none are reliable, select the
+intended range manually and use the command without `!`.
+
+`:CommentaryRecover` searches up to 100 commits per affected path across local
+Git refs for source blobs matching the anchor's full-buffer SHA-256 exactly.
+This can recover provenance for comments made before the source was committed,
+including subsequent Git-detected renames. It runs only on explicit request,
+uses no network, and caches evidence for the session without rewriting review
+files. Run it again in a new session if needed. It cannot recover a source
+snapshot that was never saved anywhere, and deleted code remains detached.
+
+Resolution is conservative: live extmarks and unchanged Git diff ranges can
+disambiguate duplicate text, and unique surrounding context can recover a
+rewritten selection. Missing provenance or genuinely removed code may still
+require manual reattachment; approximate text similarity is not sufficient.
+
+Storage refreshes and anchor resolution run in an isolated headless Neovim
+worker with no user configuration or plugins. Requests coalesce; stale results
+are discarded after edits, writes, or project changes. The editor uses its last
+completed snapshot while refreshing. Opening the picker waits asynchronously
+for fresh contents. Writes remain synchronous and durable. Snapshot transfer
+and indicator updates still happen on the editor thread, so unusually large
+loaded buffers or comment sets can have overhead.
+
+A debounced storage-directory watcher loads external changes without waiting
+for an editor event. `CursorHold` remains a polling fallback if watching is
+unavailable; when the watcher is active, idle events only update live markers.
+Malformed anchors remain visible as detached rather than failing a batch.
 
 The number of surrounding lines captured for new anchors is configurable:
 
