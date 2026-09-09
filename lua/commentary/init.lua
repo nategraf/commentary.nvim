@@ -59,7 +59,7 @@ function M.setup(opts)
 
   vim.api.nvim_create_user_command("CommentaryReattach", function(args)
     M.reattach_thread(args.line1, args.line2, args.bang)
-  end, { range = true, bang = true, desc = "Attach a thread here; ! offers candidate locations in this file" })
+  end, { range = true, bang = true, desc = "Attach a thread here; ! searches for locations across the repository" })
 
   vim.api.nvim_create_user_command("CommentaryRecover", function()
     state.request_sync(function()
@@ -432,6 +432,7 @@ end
 
 --- Select a thread to attach to the current source line or Ex range.
 function M.reattach_thread(first, last, suggest)
+  if suggest then return require("commentary.reattach").start() end
   local bufnr = vim.api.nvim_get_current_buf()
   local name = vim.api.nvim_buf_get_name(bufnr)
   if name == "" or vim.bo[bufnr].buftype ~= "" then
@@ -481,16 +482,7 @@ function M.reattach_thread(first, last, suggest)
         vim.notify("Could not reattach thread; it may have been removed", vim.log.levels.ERROR)
       end
     end
-    if not suggest then return attach(context) end
-    local matches = require("commentary.anchor").candidates(choice.data.root_comment, bufnr)
-    if #matches == 0 then
-      vim.notify("No reliable candidates in this file; select a range and use :CommentaryReattach", vim.log.levels.INFO)
-      return
-    end
-    vim.ui.select(matches, {
-      prompt = "Choose the correct location (cancel to leave detached)",
-      format_item = function(item) return string.format("%d-%d: %s", item.line_start, item.line_end, item.text) end,
-    }, attach)
+    attach(context)
   end)
 end
 

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Exact historical source hashes can recover missing anchor provenance with `:CommentaryRecover`.
-- `:CommentaryReattach!` offers candidate locations in a user-chosen source file.
+- `:CommentaryReattach!` infers the displayed thread and offers cancellable, cross-file candidate previews with stale-selection checks.
 - External storage updates are watched; malformed anchors and failed refreshes retain accessible review data.
 - Dirty-buffer provenance and diff projections across deletions are corrected; navigation respects repository roots.
 - Anchor attachment now has two states, attached and detached, with separate diagnostic reasons.

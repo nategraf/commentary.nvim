@@ -71,6 +71,7 @@ local function configured_key(action)
 end
 
 local function setup_comment_actions(buf, win, comment_by_line)
+  vim.b[buf].commentary_comment_ids = vim.tbl_map(function(comment) return comment.id end, comment_by_line)
   local actions = {
     delete_comment = {
       method = "delete_comment",
@@ -112,6 +113,12 @@ local function setup_comment_actions(buf, win, comment_by_line)
       })
     end
   end
+end
+
+function M.comment_under_cursor()
+  local ids = vim.b.commentary_comment_ids
+  local id = ids and ids[vim.api.nvim_win_get_cursor(0)[1]]
+  return id and require("commentary.state").get_comment(id) or nil
 end
 
 --- Show generic input window

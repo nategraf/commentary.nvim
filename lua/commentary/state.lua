@@ -284,7 +284,7 @@ function M.get_comment(id)
 end
 
 --- Reattach a complete thread, preserving its comments and identities.
-function M.reattach_thread(thread_id, context)
+function M.reattach_thread(thread_id, context, expected)
   local backend = get_storage()
   if backend.reload then
     backend.reload()
@@ -292,6 +292,11 @@ function M.reattach_thread(thread_id, context)
   local data = require("commentary.thread").build_thread_tree(backend.get_all())[thread_id]
   if not data then
     return false
+  end
+  if expected then
+    for _, field in ipairs({ "id", "file", "line_start", "line_end", "anchor" }) do
+      if not vim.deep_equal(data.root_comment[field], expected[field]) then return false end
+    end
   end
   local captured = require("commentary.anchor").capture(context)
   local updates = {

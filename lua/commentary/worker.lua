@@ -9,6 +9,10 @@ for _, buffer in ipairs(request.buffers) do
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, buffer.lines)
   vim.bo[bufnr].endofline = buffer.endofline
 end
+if request.operation == "candidates" then
+  io.stdout:write(vim.json.encode(require("commentary.candidate-search").search(request.comment, request.cwd)))
+  return
+end
 -- Do not initialize storage: initialization includes legacy migration writes.
 local comments = request.comments or require("commentary.storage.file").get_all()
 local recovered, evidence = require("commentary.history").recover(

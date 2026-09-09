@@ -295,7 +295,7 @@ end
 | `:CommentaryComment [lines]` | `<leader>rc`   | Add comment at cursor/selection with optional context lines |
 | `:CommentaryShowComment`     | `<leader>rs`   | Show comments at cursor position                            |
 | `:CommentaryList [sort]`     | `<leader>rl`   | List threads by `activity` or `file`                         |
-| `:[range]CommentaryReattach[!]` | —           | Reattach a thread here; `!` offers candidates in this file   |
+| `:[range]CommentaryReattach[!]` | —           | Reattach a thread here; `!` searches across the repository   |
 | `:CommentaryRecover`        | —             | Search recent Git history for exact source snapshots        |
 | `:CommentaryPreview`         | `<leader>rp`   | Open preview window with editable content                   |
 | `:CommentarySave [path]`     | `<leader>rw`   | Save review to file                                         |
@@ -527,11 +527,23 @@ To reattach a thread, move to the desired source line and run
 the thread's stored location and anchor, preserving its comments and replies.
 Canceling the selection changes nothing. No additional default key is reserved.
 
-If you know the file but not the line, use `:CommentaryReattach!`. After selecting
-a thread, choose among matching locations in the current source buffer. This
-also works when an uncommitted file was renamed and Git cannot identify it.
-Candidates are never accepted automatically; if none are reliable, select the
-intended range manually and use the command without `!`.
+To find a destination, run `:CommentaryReattach!` from a comment view (including
+a reply) or the thread picker. It uses that thread directly; from a source
+buffer it first asks which thread to locate. A Telescope picker searches across
+the repository in a background process, including unsaved source buffers, and
+previews candidates labeled by evidence: exact text, whitespace-normalized text,
+or surrounding context. Enter explicitly attaches to the selected location;
+Escape cancels without changing anything. No pending thread is remembered after
+the picker closes. Changed source text or attachments invalidate the selection.
+
+Search is bounded (8 seconds, 2,000 candidate files, 200 locations, and 2 MiB
+source files, with a 16 MiB total buffer-snapshot budget); incomplete searches
+are labeled. Ripgrep, when available,
+prefilters files using anchor text; otherwise Git enumerates tracked and
+nonignored untracked files. Symlinks and review storage are excluded. Suggestions
+are not exhaustive, and no candidate is accepted automatically. If no suitable
+location appears, select the intended range and use the command without `!`.
+The suggestion picker requires Telescope; manual reattachment does not.
 
 `:CommentaryRecover` searches up to 100 commits per affected path across local
 Git refs for source blobs matching the anchor's full-buffer SHA-256 exactly.

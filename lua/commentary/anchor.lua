@@ -269,16 +269,27 @@ end
 
 --- Candidate locations in a user-chosen buffer. Never auto-accept a candidate.
 function M.candidates(comment, bufnr)
+  local _, lines = buffer_text(bufnr)
+  return M.candidates_in_lines(comment, lines)
+end
+
+function M.candidates_in_lines(comment, lines)
   if not M.valid(comment) then return {} end
   local stored = comment.anchor or { selected = comment.context_lines or {} }
-  local _, lines = buffer_text(bufnr)
+  local evidence = "exact"
   local candidates = content_candidates(stored, lines, false)
-  if #candidates == 0 then candidates = content_candidates(stored, lines, true) end
   if #candidates == 0 then
+    evidence = "whitespace"
+    candidates = content_candidates(stored, lines, true)
+  end
+  if #candidates == 0 then
+    evidence = "context"
     local surrounded = context_range(stored, lines)
     if surrounded and surrounded.status ~= "deleted" then candidates = { surrounded } end
   end
-  for _, candidate in ipairs(candidates) do candidate.text = lines[candidate.line_start] end
+  for _, candidate in ipairs(candidates) do
+    candidate.text, candidate.evidence = lines[candidate.line_start], evidence
+  end
   return candidates
 end
 
