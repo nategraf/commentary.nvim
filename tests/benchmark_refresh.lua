@@ -16,7 +16,20 @@ for i = 1, math.min(24, #files) do
     vim.fn.bufload(buf)
   end
 end
-for _, count in ipairs({ 100, 1000 }) do
+-- Optional synthetic unsaved buffer stresses transfer costs without changing
+-- the checkout. The text is copied from LLVM, but no source snapshot is saved.
+local extra_mib = tonumber(vim.env.REVIEW_BUFFER_MIB) or 0
+if extra_mib > 0 then
+  local buf = vim.api.nvim_create_buf(true, false)
+  vim.api.nvim_buf_set_name(buf, root .. "/commentary-benchmark-unsaved.cpp")
+  local line = inputs[1].lines[1] or "// LLVM benchmark"
+  local lines = {}
+  for i = 1, math.ceil(extra_mib * 1024 * 1024 / (#line + 1)) do lines[i] = line end
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+end
+local counts = vim.env.REVIEW_COUNTS and vim.split(vim.env.REVIEW_COUNTS, ",") or { 100, 1000 }
+for _, requested in ipairs(counts) do
+  local count = assert(tonumber(requested))
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
   for i = 1, count do
@@ -45,7 +58,8 @@ for _, count in ipairs({ 100, 1000 }) do
   vim.wait(20, function() return false end, 5)
   timer:stop()
   timer:close()
-  print(vim.json.encode({threads=count, files=#inputs, loaded=8, elapsed_ms=(vim.uv.hrtime()-started)/1e6,
+  print(vim.json.encode({threads=count, files=#inputs, loaded=8 + (extra_mib > 0 and 1 or 0),
+    extra_buffer_mib=extra_mib, elapsed_ms=(vim.uv.hrtime()-started)/1e6,
     max_heartbeat_gap_ms=gap, heartbeat_ticks=beats, lua_heap_kib=collectgarbage("count"),
     process_maxrss_kib=vim.uv.getrusage().maxrss}))
   assert(#state.get_comments()==count)
