@@ -111,6 +111,15 @@ local function sort_thread_list(threads, sort_mode)
   return thread_list
 end
 
+local function prepare_threads(sort_mode)
+  local comments = state.get_comments()
+  if #comments == 0 then
+    vim.notify("No threads to display", vim.log.levels.INFO)
+    return nil
+  end
+  return sort_thread_list(require("commentary.thread").build_thread_tree(comments), sort_mode)
+end
+
 local function reverse_copy(items)
   local reversed = {}
   for index = #items, 1, -1 do
@@ -568,17 +577,8 @@ end
 --- List all threads using quickfix
 ---@param sort_mode? "activity"|"file"|fun(a: table, b: table): boolean
 function M.list_threads_with_quickfix(sort_mode)
-  local comments = state.get_comments()
-
-  if #comments == 0 then
-    vim.notify("No threads to display", vim.log.levels.INFO)
-    return
-  end
-
-  -- Build thread tree
-  local thread = require("commentary.thread")
-  local threads = thread.build_thread_tree(comments)
-  local thread_list = sort_thread_list(threads, sort_mode)
+  local thread_list = prepare_threads(sort_mode)
+  if not thread_list then return end
 
   -- Convert threads to quickfix items
   local qf_items = {}
@@ -628,17 +628,8 @@ function M.list_threads_with_fzf_lua(sort_mode)
     return false
   end
 
-  local comments = state.get_comments()
-  if #comments == 0 then
-    vim.notify("No threads to display", vim.log.levels.INFO)
-    return true
-  end
-
-  -- Build thread tree
-  local thread = require("commentary.thread")
-  local threads = thread.build_thread_tree(comments)
-
-  local thread_list = sort_thread_list(threads, sort_mode)
+  local thread_list = prepare_threads(sort_mode)
+  if not thread_list then return true end
   -- fzf's default layout puts the first result at the bottom beside the
   -- prompt. Reverse the top-to-bottom order so the newest thread starts there.
   local picker_threads = reverse_copy(thread_list)
@@ -847,17 +838,8 @@ function M.list_threads_with_telescope(sort_mode)
   local action_state = require("telescope.actions.state")
   local entry_display = require("telescope.pickers.entry_display")
 
-  local comments = state.get_comments()
-  if #comments == 0 then
-    vim.notify("No threads to display", vim.log.levels.INFO)
-    return true
-  end
-
-  -- Build thread tree
-  local thread = require("commentary.thread")
-  local threads = thread.build_thread_tree(comments)
-
-  local thread_list = sort_thread_list(threads, sort_mode)
+  local thread_list = prepare_threads(sort_mode)
+  if not thread_list then return true end
   -- Telescope's descending layout renders the first finder result at the
   -- bottom. Reverse the desired visual order so recent activity is selected.
   local picker_threads = reverse_copy(thread_list)
