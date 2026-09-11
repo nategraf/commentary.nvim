@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Comment input sizing uses rendered screen lines and reserves wrap-boundary cursor space, preventing text from disappearing while typing.
 - Thread pickers share collection and sorting preparation across Telescope, fzf-lua, and quickfix.
 - Root comments receive their thread identity in one storage write, without a delete/recreate cycle.
 - Review-file writes publish by atomic replacement; failed writes leave the original intact. Concurrent-writer coordination remains a separate concern.

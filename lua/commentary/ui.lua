@@ -443,22 +443,24 @@ function M.show_comment_input(callback, context, title, initial_text)
 
   -- Function to adjust window height based on content
   local function adjust_window_height()
-    if not vim.api.nvim_win_is_valid(win) then
+    if not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_buf(win) ~= buf then
       return
     end
 
-    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    -- Get actual line count from buffer (includes empty lines)
-    local line_count = vim.api.nvim_buf_line_count(buf)
-
-    -- Account for wrapped lines
-    local total_lines = 0
-    for i = 1, line_count do
-      local line = lines[i] or ""
-      local line_width = vim.fn.strdisplaywidth(line)
-      local wrapped_lines = math.max(1, math.ceil(line_width / width))
-      total_lines = total_lines + wrapped_lines
-    end
+    -- Ask the renderer, which also accounts for word wrapping and indentation.
+    local total_lines = vim.api.nvim_win_text_height(win, {}).all
+    -- Text height excludes the insertion cursor beyond EOL. At a wrap
+    -- boundary that cursor needs another row, or the text scrolls out of view.
+    vim.api.nvim_win_call(win, function()
+      local cursor_pos = vim.api.nvim_win_get_cursor(win)
+      local line = vim.api.nvim_get_current_line()
+      local text_width = vim.api.nvim_win_get_width(win) - vim.fn.getwininfo(win)[1].textoff
+      local column = vim.fn.virtcol(".")
+      if vim.fn.mode():match("^[iR]") and cursor_pos[2] >= #line and column > 1
+        and text_width > 0 and (column - 1) % text_width == 0 then
+        total_lines = total_lines + 1
+      end
+    end)
 
     -- Calculate new height (minimum conf.height, maximum conf.max_height)
     local max_height = conf.max_height or 20
@@ -467,21 +469,19 @@ function M.show_comment_input(callback, context, title, initial_text)
     -- Update window height if changed
     if new_height ~= current_height then
       current_height = new_height
-      -- Save cursor position before resizing
-      local cursor_pos = vim.api.nvim_win_get_cursor(win)
       vim.api.nvim_win_set_config(win, {
         height = new_height,
       })
-      -- Ensure first line is visible after resize
-      if cursor_pos[1] > 1 then
-        vim.api.nvim_win_set_cursor(win, { 1, 0 })
-        vim.api.nvim_win_set_cursor(win, cursor_pos)
+      if total_lines <= new_height then
+        -- Growing a scrolled window does not automatically restore its top.
+        -- Reveal all text when it fits, without moving the editing cursor.
+        vim.api.nvim_win_call(win, function() vim.fn.winrestview({ topline = 1, skipcol = 0 }) end)
       end
     end
   end
 
   -- Set up autocmd to adjust height on text change
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "InsertEnter", "InsertLeave" }, {
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "CursorMovedI", "InsertEnter", "InsertLeave" }, {
     buffer = buf,
     callback = adjust_window_height,
   })
