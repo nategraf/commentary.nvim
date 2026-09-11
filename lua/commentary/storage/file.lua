@@ -1,6 +1,7 @@
 local M = {}
 
 local utils = require("commentary.utils")
+local atomic = require("commentary.storage.atomic")
 
 local storage_dir = nil
 local comments_cache = nil
@@ -328,7 +329,7 @@ function M.add(comment_data)
       -- Format content
       local formatted_text = M.format_thread_as_markdown(thread_comments)
 
-      if utils.save_to_file(filepath, formatted_text) then
+      if atomic.write(filepath, formatted_text) then
         invalidate_cache()
         return comment_data.id
       else
@@ -347,7 +348,7 @@ function M.add(comment_data)
   -- Format the comment with full context
   local formatted_text = M.format_comment_as_markdown(comment_data)
 
-  if utils.save_to_file(filepath, formatted_text) then
+  if atomic.write(filepath, formatted_text) then
     invalidate_cache()
     return comment_data.id
   else
@@ -424,7 +425,7 @@ function M.update(id, updates)
     formatted_text = M.format_comment_as_markdown(thread_comments[1])
   end
 
-  if not utils.save_to_file(filepath, formatted_text) then
+  if not atomic.write(filepath, formatted_text) then
     return false
   end
 
@@ -473,7 +474,7 @@ function M.delete(id)
       return false
     end
 
-    if not utils.save_to_file(filepath, M.format_thread_as_markdown(remaining)) then
+    if not atomic.write(filepath, M.format_thread_as_markdown(remaining)) then
       return false
     end
 
