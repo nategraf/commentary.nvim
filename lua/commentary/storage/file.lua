@@ -342,6 +342,7 @@ function M.add(comment_data)
   local dir = ensure_storage_dir()
   local filename = get_comment_filename(comment_data)
   comment_data.id = parse_id(filename)
+  if not comment_data.parent_id then comment_data.thread_id = comment_data.id .. "_thread" end
 
   local filepath = dir .. "/" .. filename
 

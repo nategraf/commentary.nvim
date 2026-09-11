@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Root comments receive their thread identity in one storage write, without a delete/recreate cycle.
 - Review-file writes publish by atomic replacement; failed writes leave the original intact. Concurrent-writer coordination remains a separate concern.
 - Open comment threads in directional splits with `<leader>rwh`, `rwj`, `rwk`, and `rwl`; `<leader>rs` remains floating.
 - Escape no longer closes comment input or view windows; use `q` to close them.

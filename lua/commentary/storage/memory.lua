@@ -35,6 +35,7 @@ function M.add(comment_data)
     comment_data.id = string.format("%d_%03d_%04d", vim.fn.localtime(), ms % 1000, math.random(1000, 9999))
   end
   comment_data.timestamp = comment_data.timestamp or os.time()
+  if not comment_data.parent_id then comment_data.thread_id = comment_data.id .. "_thread" end
 
   table.insert(session.comments, comment_data)
   return comment_data.id
