@@ -207,6 +207,12 @@ vim.keymap.set('n', '<leader>rx', cr.clear, { desc = "Clear all comments" })
 
 ### Buffer-Specific Keymaps
 
+`<leader>rwh`, `<leader>rwj`, `<leader>rwk`, and `<leader>rwl` show the thread
+at the cursor in a left, below, above, or right split. `<leader>rs` still opens
+a float. Multiple threads use the same chooser in either layout. These mappings
+share a prefix with `<leader>rw` (save review), so the shorter mapping waits for
+`timeoutlen`; all mappings can be customized or disabled in `keymaps`.
+
 You can set up keymaps for specific commentary buffers using autocmds:
 
 ```lua

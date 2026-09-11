@@ -69,6 +69,27 @@ T["Escape retains native behavior in comment inputs and views"] = function()
   end
 end
 
+T["comment views open in directional splits without replacing the source"] = function()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(win).relative == "" then vim.api.nvim_set_current_win(win); break end
+  end
+  local source_win = vim.api.nvim_get_current_win()
+  local source_buf = vim.api.nvim_get_current_buf()
+  for _, direction in ipairs({ "left", "below", "above", "right" }) do
+    ui.show_comment_list({ comment("split-test", "Split comment", 1) }, { split = direction, win = source_win })
+    local win = vim.api.nvim_get_current_win()
+    MiniTest.expect.equality(vim.api.nvim_win_get_config(win).relative, "")
+    MiniTest.expect.equality(vim.api.nvim_win_get_buf(source_win), source_buf)
+    local source_pos, comment_pos = vim.api.nvim_win_get_position(source_win), vim.api.nvim_win_get_position(win)
+    local axis = (direction == "left" or direction == "right") and 2 or 1
+    local before = direction == "left" or direction == "above"
+    MiniTest.expect.equality(comment_pos[axis] < source_pos[axis], before)
+    vim.cmd("normal q")
+    MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), false)
+    MiniTest.expect.equality(vim.api.nvim_get_current_win(), source_win)
+  end
+end
+
 T["comment views navigate by wrapped screen lines"] = function()
   ui.show_comment_list({
     {

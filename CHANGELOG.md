@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Open comment threads in directional splits with `<leader>rwh`, `rwj`, `rwk`, and `rwl`; `<leader>rs` remains floating.
 - Escape no longer closes comment input or view windows; use `q` to close them.
 - Exact historical source hashes can recover missing anchor provenance with `:CommentaryRecover`.
 - `:CommentaryReattach!` infers the displayed thread and offers cancellable, cross-file candidate previews with stale-selection checks.

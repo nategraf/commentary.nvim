@@ -110,6 +110,10 @@ function M.setup(opts)
             save = "Save review to file",
             copy = "Copy review to clipboard",
             show_comment = "Show comment at cursor",
+            show_comment_left = "Show comment in left split",
+            show_comment_below = "Show comment in split below",
+            show_comment_above = "Show comment in split above",
+            show_comment_right = "Show comment in right split",
             list_comments = "List all comments",
             delete_comment = "Delete comment at cursor",
             edit_comment = "Edit comment at cursor",
@@ -127,6 +131,10 @@ function M.setup(opts)
             save = M.save,
             copy = M.copy,
             show_comment = M.show_comment_at_cursor,
+            show_comment_left = function() M.show_comment_at_cursor("left") end,
+            show_comment_below = function() M.show_comment_at_cursor("below") end,
+            show_comment_above = function() M.show_comment_at_cursor("above") end,
+            show_comment_right = function() M.show_comment_at_cursor("right") end,
             list_comments = M.list_comments,
             delete_comment = M.delete_comment_at_cursor,
             edit_comment = M.edit_comment_at_cursor,
@@ -350,7 +358,13 @@ function M.copy()
 end
 
 --- Show comment at cursor position
-function M.show_comment_at_cursor()
+---@param split? "left"|"below"|"above"|"right"
+function M.show_comment_at_cursor(split)
+  local source_win = vim.api.nvim_get_current_win()
+  local function show(comments)
+    if not vim.api.nvim_win_is_valid(source_win) then return end
+    ui.show_comment_list(comments, split and { split = split, win = source_win } or nil)
+  end
   local bufnr = vim.api.nvim_get_current_buf()
   local file = utils.normalize_path(vim.api.nvim_buf_get_name(bufnr))
   local row = vim.api.nvim_win_get_cursor(0)[1]
@@ -378,12 +392,12 @@ function M.show_comment_at_cursor()
 
   if thread_count == 0 then
     -- No threads, show all comments
-    ui.show_comment_list(line_comments)
+    show(line_comments)
   elseif thread_count == 1 then
     -- Single thread, show all its comments
     local thread_id = next(threads)
     local thread_comments = state.get_thread_comments(thread_id)
-    ui.show_comment_list(thread_comments)
+    show(thread_comments)
   else
     -- Multiple threads, let user choose
     local thread_list = {}
@@ -418,7 +432,7 @@ function M.show_comment_at_cursor()
     }, function(choice)
       if choice then
         local thread_comments = state.get_thread_comments(choice.thread_id)
-        ui.show_comment_list(thread_comments)
+        show(thread_comments)
       end
     end)
   end

@@ -111,6 +111,10 @@ local defaults = {
       mode = "n",
       key = "<leader>rs",
     },
+    show_comment_left = { mode = "n", key = "<leader>rwh" },
+    show_comment_below = { mode = "n", key = "<leader>rwj" },
+    show_comment_above = { mode = "n", key = "<leader>rwk" },
+    show_comment_right = { mode = "n", key = "<leader>rwl" },
     -- List all comments
     list_comments = {
       mode = "n",

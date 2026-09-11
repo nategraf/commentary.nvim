@@ -611,7 +611,8 @@ end
 
 --- Show comment list in floating window
 ---@param comments table[] List of comments to show
-function M.show_comment_list(comments)
+---@param opts? {split: "left"|"below"|"above"|"right", win: integer}
+function M.show_comment_list(comments, opts)
   local lines = {}
   local comment_by_line = {}
 
@@ -700,7 +701,7 @@ function M.show_comment_list(comments)
   end
 
   -- Create window
-  local win = vim.api.nvim_open_win(buf, true, {
+  local window_config = opts or {
     relative = "cursor",
     row = row_offset,
     col = 0,
@@ -710,7 +711,8 @@ function M.show_comment_list(comments)
     border = "rounded",
     title = " Review Comments ",
     title_pos = "center",
-  })
+  }
+  local win = vim.api.nvim_open_win(buf, true, window_config)
 
   -- Enable word wrap in the floating window
   vim.api.nvim_win_set_option(win, "wrap", true)
