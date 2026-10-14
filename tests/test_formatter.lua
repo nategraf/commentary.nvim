@@ -19,6 +19,45 @@ T.hooks = {
 }
 
 -- Basic formatting tests
+T["readable view groups threads and maps every line to its comment"] = function()
+  local first = {
+    id = "root", thread_id = "thread-a", timestamp = 10,
+    author = "Alice", comment = "Root\n\n\nLast line\n",
+  }
+  local reply = {
+    id = "reply", thread_id = "thread-a", timestamp = 20,
+    author = "Bob", comment = "Reply",
+  }
+  local separate = {
+    id = "separate", timestamp = 5, author = "Carol", comment = "Other thread",
+  }
+  -- Preserve first-seen thread order, but put each thread's replies in time order.
+  local comments = { reply, separate, first }
+  local lines, owners = require("commentary.formatter").format_view(comments)
+  local date_format = require("commentary.config").get("output.date_format")
+  MiniTest.expect.equality(lines, {
+    "### Alice - " .. os.date(date_format, first.timestamp), "",
+    "Root", "", "", "Last line", "",
+    "", "---", "",
+    "### Bob - " .. os.date(date_format, reply.timestamp), "", "Reply",
+    "", "---", "",
+    "### Carol - " .. os.date(date_format, separate.timestamp), "", "Other thread",
+  })
+  MiniTest.expect.equality(#owners, #lines)
+  for index = 1, #lines do
+    local expected = index <= 7 and first or (index <= 13 and reply or separate)
+    -- Actions must receive the original object, including on separator/blank lines.
+    MiniTest.expect.equality(rawequal(owners[index], expected), true)
+  end
+  MiniTest.expect.equality(comments, { reply, separate, first })
+end
+
+T["readable empty view has no lines or action targets"] = function()
+  local lines, owners = require("commentary.formatter").format_view({})
+  MiniTest.expect.equality(lines, {})
+  MiniTest.expect.equality(owners, {})
+end
+
 T["format single comment"] = function()
   local formatter = require("commentary.formatter")
   local comments = {
