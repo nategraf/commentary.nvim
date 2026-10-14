@@ -2,6 +2,44 @@ local M = {}
 
 local config = require("commentary.config")
 
+--- Readable comment bodies shared by floating views and picker previews.
+--- Returns a line-to-comment map for actions against the displayed reply.
+---@param comments table[]
+---@return string[], table[]
+function M.format_view(comments)
+  local lines, owners, threads, order = {}, {}, {}, {}
+  for _, comment in ipairs(comments) do
+    local id = comment.thread_id or comment.id
+    if not threads[id] then
+      threads[id] = {}
+      order[#order + 1] = id
+    end
+    table.insert(threads[id], comment)
+  end
+  local function append(text, comment)
+    lines[#lines + 1] = text
+    owners[#lines] = comment
+  end
+  for _, id in ipairs(order) do
+    local entries = threads[id]
+    table.sort(entries, function(a, b) return (a.timestamp or 0) < (b.timestamp or 0) end)
+    for _, comment in ipairs(entries) do
+      if #lines > 0 then
+        append("", comment)
+        append("---", comment)
+        append("", comment)
+      end
+      append("### " .. (comment.author or vim.fn.expand("$USER")) .. " - "
+        .. os.date(config.get("output.date_format"), comment.timestamp), comment)
+      append("", comment)
+      for _, line in ipairs(vim.split(comment.comment, "\n", { plain = true, trimempty = false })) do
+        append(line, comment)
+      end
+    end
+  end
+  return lines, owners
+end
+
 --- Format comments to markdown
 ---@param comments table[]
 ---@return string

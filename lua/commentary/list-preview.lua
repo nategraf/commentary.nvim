@@ -21,32 +21,7 @@ function M.format_thread(thread_info)
   local comments = { root }
   vim.list_extend(comments, thread_info.data.replies or {})
 
-  local lines = {
-    "# Thread Overview",
-    "",
-    string.format("**File**: %s", root.file),
-    string.format("**Line**: %d", root.line_start),
-    string.format("**Comments**: %d", #comments),
-    "",
-    "---",
-    "",
-  }
-
-  if root.anchor_status == "detached" then
-    table.insert(lines, 6, "**Anchor**: detached (" .. (root.anchor_reason or "unresolved") .. ")")
-    table.insert(lines, 7, "Reattach from the desired source line/range with :CommentaryReattach.")
-  end
-
-  for index, comment in ipairs(comments) do
-    table.insert(lines, string.format("## Comment %d", index))
-    table.insert(lines, "")
-    vim.list_extend(lines, formatter.format_single(comment))
-    if index < #comments then
-      vim.list_extend(lines, { "", "---", "" })
-    end
-  end
-
-  return lines
+  return formatter.format_view(comments)
 end
 
 --- Create a custom previewer for Telescope that shows comment content
@@ -64,7 +39,7 @@ function M.telescope_comment_previewer()
       enable_wrapping(self)
 
       -- Use formatter for preview (no ANSI for Telescope)
-      local lines = formatter.format_single(comment_data)
+      local lines = formatter.format_view({ comment_data })
 
       -- Make buffer modifiable before setting content
       vim.api.nvim_buf_set_option(bufnr, "modifiable", true)
